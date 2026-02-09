@@ -80,10 +80,11 @@
         .song-item {
             display: flex; align-items: center; padding: 12px 0;
             border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer;
-            position: relative; /* 定位用 */
+            position: relative;
         }
         .song-cover-thumb { width: 50px; height: 50px; border-radius: 6px; object-fit: cover; margin-right: 15px; }
         .song-info-list { flex: 1; min-width: 0; }
+        /* 讓歌名完整顯示，過長才省略 */
         .song-title-list { font-size: 16px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .song-artist-list { font-size: 13px; color: var(--text-sub); margin-top: 4px; }
         
@@ -93,12 +94,12 @@
 
         /* ★★★ 浮動快顯選單 (Popup Menu) ★★★ */
         .context-menu {
-            position: fixed; /* 固定在螢幕上，座標由 JS 計算 */
+            position: fixed;
             background-color: var(--menu-bg);
             border-radius: 8px;
             box-shadow: 0 4px 20px rgba(0,0,0,0.8);
             width: 160px;
-            display: none; /* 預設隱藏 */
+            display: none;
             z-index: 999;
             overflow: hidden;
             animation: popIn 0.2s ease-out;
@@ -119,7 +120,6 @@
         .context-item:hover { background-color: #444; }
         .context-item span.material-icons-round { margin-right: 10px; font-size: 18px; color: #ccc; }
         
-        /* 透明遮罩 (點擊別處關閉選單用) */
         .context-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             z-index: 998; display: none;
@@ -347,8 +347,7 @@
         const toneArm = document.getElementById('tone-arm');
         const playerBg = document.getElementById('player-bg');
 
-        // ★★★ 選單相關變數 ★★★
-        let contextMenuTargetIndex = -1; // 記錄對哪首歌按了右鍵
+        let contextMenuTargetIndex = -1; 
         
         window.onload = async () => {
             await fetchFiles();
@@ -376,10 +375,17 @@
                         const baseName = file.name.replace(/\.[^/.]+$/, ""); 
                         const lowerName = baseName.toLowerCase();
                         
+                        // ★★★ 修改：完全依照你的指示 ★★★
+                        // 1. 標題：完全保留原始檔名 (包含 - )
+                        let title = baseName;
+                        
+                        // 2. 歌手：預設 Unknown，完全不猜測，只等讀取 ID3
+                        let artist = "Unknown Artist";
+                        
                         return {
                             id: index,
-                            title: baseName, 
-                            artist: "Unknown Artist", // 列表預設 Unknown
+                            title: title, 
+                            artist: artist, 
                             filename: baseName, 
                             url: file.download_url,
                             cover: picMap[lowerName] || defaultPic
@@ -419,9 +425,7 @@
                         </span>
                     </div>
                 `;
-                // 點擊整行播放 (要排除那三個點點)
                 div.onclick = (e) => {
-                    // 如果點到的是 more_vert，不要觸發播放
                     if(e.target.innerText === 'more_vert') return;
                     currentIndex = idx;
                     playSong();
@@ -430,62 +434,46 @@
             });
         }
 
-        // ★★★ 選單功能區 ★★★
-        
-        // 1. 顯示選單 (定位在點擊位置)
+        // ★★★ 選單功能 ★★★
         function showContextMenu(e, index) {
-            e.stopPropagation(); // 防止冒泡觸發播放
+            e.stopPropagation(); 
             contextMenuTargetIndex = index;
 
             const menu = document.getElementById('context-menu');
             const overlay = document.getElementById('context-overlay');
             
-            // 取得點擊按鈕的座標
             const rect = e.target.getBoundingClientRect();
-            
-            // 計算選單位置：出現在按鈕的左下方
-            // (為了防止太靠右邊超出螢幕，我們靠右對齊)
             let top = rect.bottom;
-            let right = window.innerWidth - rect.right; // 距離右邊界的距離
+            let right = window.innerWidth - rect.right; 
 
             menu.style.top = top + 'px';
-            menu.style.right = right + 'px'; // 設定 right 比較安全
+            menu.style.right = right + 'px'; 
             menu.style.display = 'block';
             overlay.style.display = 'block';
         }
 
-        // 2. 隱藏選單
         function hideContextMenu() {
             document.getElementById('context-menu').style.display = 'none';
             document.getElementById('context-overlay').style.display = 'none';
         }
 
-        // 3. 下一首播放
+        // 下一首播放
         function fnPlayNext() {
             hideContextMenu();
             if(contextMenuTargetIndex === -1) return;
 
             const song = currentPlaylist[contextMenuTargetIndex];
-            
-            // 如果就是現在在播的，不用動
             if(contextMenuTargetIndex === currentIndex) return;
 
-            // 先從原本位置移除
             currentPlaylist.splice(contextMenuTargetIndex, 1);
-            
-            // 如果移除的歌在目前播放歌曲的「上面」，currentIndex 要減 1，不然會播錯
             if(contextMenuTargetIndex < currentIndex) {
                 currentIndex--;
             }
-            
-            // 插隊到目前播放歌曲的「下一首」
             currentPlaylist.splice(currentIndex + 1, 0, song);
-            
-            renderList(); // 重新渲染列表
-            // 不用 alert，直接看到列表變動就是最好的回饋
+            renderList(); 
         }
 
-        // 4. 下載
+        // 下載
         function fnDownload() {
             hideContextMenu();
             if(contextMenuTargetIndex === -1) return;
@@ -500,26 +488,21 @@
             document.body.removeChild(link);
         }
 
-        // 5. 移除 (本地)
+        // 移除
         function fnRemove() {
             hideContextMenu();
             if(contextMenuTargetIndex === -1) return;
             
-            // 如果移除的是正在播的，自動切下一首
             if(contextMenuTargetIndex === currentIndex) {
                 nextSong();
             }
 
             currentPlaylist.splice(contextMenuTargetIndex, 1);
-            
-            // 修正索引
             if(contextMenuTargetIndex < currentIndex) {
                 currentIndex--;
             }
-            
             renderList();
         }
-
 
         function loadSong(index, autoPlay = true) {
             if (index < 0 || index >= currentPlaylist.length) return;
@@ -540,6 +523,7 @@
 
         async function readID3Tags(song) {
             try {
+                // 這裡使用了 AbortController 來確保只下載前 128KB
                 const controller = new AbortController();
                 const signal = controller.signal;
                 const response = await fetch(song.url, { signal });
@@ -548,15 +532,17 @@
                 const reader = response.body.getReader();
                 let chunks = [];
                 let receivedLength = 0;
-                const LIMIT = 128 * 1024; 
+                const LIMIT = 128 * 1024; // 128KB 限制
 
                 while (true) {
                     const { done, value } = await reader.read();
                     if (done) break;
                     chunks.push(value);
                     receivedLength += value.length;
+                    
+                    // ★ 關鍵：超過 128KB 直接切斷連線！
                     if (receivedLength > LIMIT) {
-                        controller.abort();
+                        controller.abort(); 
                         break;
                     }
                 }
@@ -569,12 +555,13 @@
                             if (tags.title) {
                                 document.getElementById('player-title').innerText = tags.title;
                                 document.getElementById('mini-title').innerText = tags.title;
-                                song.title = tags.title;
+                                // 我們不覆蓋 song.title，保留完整檔名顯示
                             }
                             if (tags.artist) {
                                 document.getElementById('player-artist').innerText = tags.artist;
                                 document.getElementById('mini-artist').innerText = tags.artist;
-                                song.artist = tags.artist;
+                                // ★ 只有在讀到 tag 時才更新歌手，否則維持 Unknown
+                                song.artist = tags.artist; 
                             }
                         },
                         onError: function(error) {}
