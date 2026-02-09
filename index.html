@@ -6,6 +6,7 @@
     <title>GitHub Music Player</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
     <style>
         /* --- 全局變數與重置 --- */
         :root {
@@ -42,7 +43,7 @@
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        /* --- 主容器 (頁面切換用) --- */
+        /* --- 主容器 --- */
         #app-container {
             width: 100%; height: 100%; position: relative;
         }
@@ -67,7 +68,7 @@
         .nav-title { font-size: 20px; font-weight: 700; }
         .icon-btn { background: none; border: none; color: white; cursor: pointer; padding: 8px; }
 
-        /* 功能選單 (匯入匯出) */
+        /* 功能選單 */
         .menu-options {
             position: absolute; top: 60px; right: 10px;
             background: #333; border-radius: 8px; padding: 10px;
@@ -110,8 +111,8 @@
             cursor: pointer; z-index: 20;
         }
         .mini-info { flex: 1; margin: 0 15px; }
-        .mini-title { font-size: 14px; font-weight: bold; }
-        .mini-artist { font-size: 12px; color: #aaa; }
+        .mini-title { font-size: 14px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .mini-artist { font-size: 12px; color: #aaa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .mini-controls button { font-size: 32px; color: white; background: none; border: none; }
 
         /* --- 2. 播放器頁面 (Player View) --- */
@@ -138,11 +139,10 @@
             padding: 20px; display: flex; justify-content: space-between; align-items: center; color: white;
         }
 
-        /* 黑膠唱片區 (核心動畫) */
+        /* 黑膠唱片區 */
         .vinyl-area {
             flex: 1; display: flex; justify-content: center; align-items: center; position: relative;
         }
-        /* 唱臂 (純裝飾) */
         .tone-arm {
             position: absolute; top: 0; right: 40px; width: 80px; height: 120px;
             background: url('https://cdn-icons-png.flaticon.com/512/3067/3067403.png') no-repeat center/contain;
@@ -152,7 +152,6 @@
         }
         .tone-arm.playing { transform: rotate(0deg); }
 
-        /* 黑膠本體 */
         .vinyl-record {
             width: 280px; height: 280px;
             background: radial-gradient(#111 50%, #000 51%);
@@ -166,7 +165,6 @@
         }
         .vinyl-record.playing { animation-play-state: running; }
         
-        /* 黑膠紋路效果 */
         .vinyl-record::before {
             content: ''; position: absolute; width: 95%; height: 95%;
             border-radius: 50%;
@@ -189,13 +187,12 @@
             padding: 30px; display: flex; flex-direction: column;
         }
         .player-info { text-align: center; margin-bottom: 20px; }
-        .player-title { font-size: 24px; font-weight: bold; margin-bottom: 5px; }
+        .player-title { font-size: 24px; font-weight: bold; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .player-artist { font-size: 16px; color: #ccc; }
         
         .progress-bar-container { width: 100%; margin-bottom: 20px; }
         .time-labels { display: flex; justify-content: space-between; font-size: 12px; color: #ddd; margin-top: 5px;}
         
-        /* 自定義 range input */
         input[type="range"] {
             width: 100%; height: 4px; background: rgba(255,255,255,0.3);
             border-radius: 2px; -webkit-appearance: none; outline: none;
@@ -216,7 +213,6 @@
         .material-icons-round { font-size: 28px; }
         .play-pause-btn .material-icons-round { font-size: 40px; }
 
-        /* 喜歡按鈕樣式 */
         #player-fav-btn.active { color: #ff4757; }
 
     </style>
@@ -268,7 +264,9 @@
         </div>
 
         <div id="player-view">
-            <div id="player-bg"></div> <div class="player-nav">
+            <div id="player-bg"></div>
+
+            <div class="player-nav">
                 <button class="icon-btn" onclick="closePlayer()"><span class="material-icons-round">keyboard_arrow_down</span></button>
                 <span>正在播放</span>
                 <button class="icon-btn"><span class="material-icons-round">queue_music</span></button>
@@ -334,13 +332,11 @@
         let isRepeat = false;
         let favorites = JSON.parse(localStorage.getItem('myFavorites')) || [];
 
-        // DOM 元素
         const songListContainer = document.getElementById('song-list-container');
         const vinylRecord = document.getElementById('vinyl-record');
         const toneArm = document.getElementById('tone-arm');
         const playerBg = document.getElementById('player-bg');
         
-        // 初始化
         window.onload = async () => {
             await fetchFiles();
             renderList();
@@ -348,7 +344,6 @@
             setTimeout(() => document.getElementById('loading-screen').style.display = 'none', 500);
         };
 
-        // 1. 抓取 GitHub 檔案
         async function fetchFiles() {
             const musicApi = `https://api.github.com/repos/${USER}/${REPO}/contents/music`;
             const picApi = `https://api.github.com/repos/${USER}/${REPO}/contents/picture`;
@@ -358,21 +353,27 @@
                 const musicData = await musicRes.json();
                 const picData = await picRes.json();
 
-                // 處理圖片對照表
                 const picMap = {};
                 picData.forEach(p => picMap[p.name.split('.')[0].toLowerCase()] = p.download_url);
-                const defaultPic = picMap['default'] || ''; // 預設圖片
+                const defaultPic = picMap['default'] || ''; 
 
-                // 整合歌曲資料
                 allSongs = musicData
                     .filter(file => file.name.match(/\.(mp3|wav|ogg|m4a|flac)$/i))
                     .map((file, index) => {
-                        const baseName = file.name.replace(/\.[^/.]+$/, "");
+                        const baseName = file.name.replace(/\.[^/.]+$/, ""); // 去除副檔名
                         const lowerName = baseName.toLowerCase();
+                        
+                        // ★★★ 修改：移除檔名解析邏輯 ★★★
+                        // 1. 標題直接用檔名
+                        let title = baseName;
+                        // 2. 歌手一律 Unknown
+                        let artist = "Unknown Artist"; 
+                        
                         return {
-                            id: index, // 簡單ID
-                            title: baseName,
-                            artist: "Unknown Artist", // 檔名無法解析歌手，先寫死
+                            id: index,
+                            title: title, 
+                            artist: artist,
+                            filename: baseName, // 保留原始檔名 (用於我的最愛)
                             url: file.download_url,
                             cover: picMap[lowerName] || defaultPic
                         };
@@ -381,7 +382,7 @@
                 currentPlaylist = [...allSongs];
                 
                 if(allSongs.length > 0) {
-                    loadSong(0, false); // 預載第一首但不播放
+                    loadSong(0, false); 
                 }
 
             } catch (e) {
@@ -390,11 +391,10 @@
             }
         }
 
-        // 2. 渲染列表
         function renderList() {
             songListContainer.innerHTML = '';
             currentPlaylist.forEach((song, idx) => {
-                const isFav = favorites.includes(song.title);
+                const isFav = favorites.includes(song.filename);
                 const div = document.createElement('div');
                 div.className = 'song-item';
                 div.innerHTML = `
@@ -416,14 +416,15 @@
             });
         }
 
-        // 3. 載入與播放
         function loadSong(index, autoPlay = true) {
             if (index < 0 || index >= currentPlaylist.length) return;
             const song = currentPlaylist[index];
             
             audio.src = song.url;
             
-            // 更新所有 UI
+            // ★ 呼叫智慧讀取 (128KB 斷點法)
+            readID3Tags(song);
+            
             updateUI(song);
 
             if (autoPlay) {
@@ -433,25 +434,80 @@
                 setPlayingState(false);
             }
             
-            // 更新列表的高亮
             renderList();
         }
 
+        // ★ ID3 讀取函式 (128KB)
+        async function readID3Tags(song) {
+            try {
+                const controller = new AbortController();
+                const signal = controller.signal;
+                
+                // 普通 fetch，騙過 CORS
+                const response = await fetch(song.url, { signal });
+                
+                if (!response.ok) return;
+
+                const reader = response.body.getReader();
+                let chunks = [];
+                let receivedLength = 0;
+                const LIMIT = 128 * 1024; // 128KB
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    chunks.push(value);
+                    receivedLength += value.length;
+
+                    if (receivedLength > LIMIT) {
+                        controller.abort(); // 切斷
+                        break;
+                    }
+                }
+
+                const blob = new Blob(chunks);
+
+                new jsmediatags.Reader(blob)
+                    .setTagsToRead(["title", "artist"])
+                    .read({
+                        onSuccess: function(tag) {
+                            const tags = tag.tags;
+                            if (tags.title) {
+                                document.getElementById('player-title').innerText = tags.title;
+                                document.getElementById('mini-title').innerText = tags.title;
+                                song.title = tags.title;
+                            }
+                            if (tags.artist) {
+                                document.getElementById('player-artist').innerText = tags.artist;
+                                document.getElementById('mini-artist').innerText = tags.artist;
+                                song.artist = tags.artist;
+                            }
+                        },
+                        onError: function(error) {
+                            console.log('ID3 讀取失敗，維持 Unknown');
+                        }
+                    });
+
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    console.log("Fetch 失敗:", err);
+                }
+            }
+        }
+
         function updateUI(song) {
-            // 迷你播放器
             document.getElementById('mini-title').innerText = song.title;
             document.getElementById('mini-artist').innerText = song.artist;
             document.getElementById('mini-cover').src = song.cover;
             
-            // 全螢幕播放器
             document.getElementById('player-title').innerText = song.title;
             document.getElementById('player-artist').innerText = song.artist;
             document.getElementById('player-cover').style.backgroundImage = `url('${song.cover}')`;
-            playerBg.style.backgroundImage = `url('${song.cover}')`; // 背景模糊
+            playerBg.style.backgroundImage = `url('${song.cover}')`; 
             
-            // 更新最愛按鈕狀態
             const favBtn = document.getElementById('player-fav-btn');
-            if(favorites.includes(song.title)) {
+            if(favorites.includes(song.filename)) {
                 favBtn.classList.add('active');
                 favBtn.innerHTML = '<span class="material-icons-round">favorite</span>';
             } else {
@@ -508,7 +564,6 @@
             openPlayer();
         }
 
-        // 4. 進度條邏輯
         audio.ontimeupdate = () => {
             const percent = (audio.currentTime / audio.duration) * 100;
             document.getElementById('progress-bar').value = percent || 0;
@@ -536,14 +591,12 @@
             return `${min}:${sec < 10 ? '0'+sec : sec}`;
         }
 
-        // 5. 介面切換
         function openPlayer() { document.getElementById('player-view').classList.add('active'); }
         function closePlayer() { document.getElementById('player-view').classList.remove('active'); }
         
         function toggleMenu() {
             const menu = document.getElementById('menu-options');
             menu.classList.toggle('show');
-            // 點擊其他地方關閉選單
             document.addEventListener('click', function close(e) {
                 if(!e.target.closest('.nav-bar')) {
                     menu.classList.remove('show');
@@ -552,23 +605,21 @@
             });
         }
 
-        // 6. 我的最愛 (LocalStorage + 導入導出)
         function toggleFavorite() {
             const song = currentPlaylist[currentIndex];
-            const idx = favorites.indexOf(song.title);
+            const idx = favorites.indexOf(song.filename);
             
             if (idx > -1) {
-                favorites.splice(idx, 1); // 移除
+                favorites.splice(idx, 1); 
             } else {
-                favorites.push(song.title); // 加入
+                favorites.push(song.filename); 
             }
             
             localStorage.setItem('myFavorites', JSON.stringify(favorites));
-            updateUI(song); // 更新按鈕樣式
-            renderList();   // 更新列表的小愛心
+            updateUI(song); 
+            renderList();   
         }
 
-        // 導出 JSON
         function exportFavorites() {
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(favorites));
             const downloadAnchorNode = document.createElement('a');
@@ -579,7 +630,6 @@
             downloadAnchorNode.remove();
         }
 
-        // 導入 JSON
         function importFavorites(input) {
             const file = input.files[0];
             if (!file) return;
@@ -592,6 +642,7 @@
                         localStorage.setItem('myFavorites', JSON.stringify(favorites));
                         alert("導入成功！");
                         renderList();
+                        if(currentPlaylist[currentIndex]) updateUI(currentPlaylist[currentIndex]);
                     } else {
                         alert("檔案格式錯誤");
                     }
@@ -610,7 +661,7 @@
         function toggleRepeat() {
             isRepeat = !isRepeat;
             document.getElementById('repeat-icon').style.color = isRepeat ? 'var(--primary-color)' : 'white';
-            audio.loop = false; // 我們用 onended 手動控制
+            audio.loop = false; 
         }
 
     </script>
