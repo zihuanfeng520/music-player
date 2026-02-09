@@ -14,8 +14,7 @@
             --bg-color: #121212;
             --text-main: #ffffff;
             --text-sub: #b3b3b3;
-            --item-bg: rgba(255, 255, 255, 0.05);
-            --transition: all 0.3s ease;
+            --menu-bg: #333333;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -23,13 +22,12 @@
             font-family: 'Roboto', sans-serif;
             background-color: var(--bg-color);
             color: var(--text-main);
-            overflow: hidden; /* 防止滑動 */
+            overflow: hidden;
             height: 100vh;
             width: 100vw;
             user-select: none;
         }
 
-        /* --- 載入畫面 --- */
         #loading-screen {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: #000; z-index: 9999;
@@ -43,24 +41,18 @@
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        /* --- 主容器 --- */
-        #app-container {
-            width: 100%; height: 100%; position: relative;
-        }
+        #app-container { width: 100%; height: 100%; position: relative; }
 
-        /* --- 1. 列表頁面 (List View) --- */
+        /* --- 1. 列表頁面 --- */
         #list-view {
             width: 100%; height: 100%;
             display: flex; flex-direction: column;
             background: linear-gradient(180deg, #1e1e2e 0%, #000000 100%);
-            padding-bottom: 80px; /* 留給迷你播放器 */
+            padding-bottom: 80px;
             position: absolute; top: 0; left: 0;
-            transform: translateX(0); transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
             z-index: 10;
         }
-        #list-view.hidden { transform: translateX(-100%); }
 
-        /* 頂部導航 */
         .nav-bar {
             padding: 20px; display: flex; justify-content: space-between; align-items: center;
             background: rgba(0,0,0,0.5); backdrop-filter: blur(10px);
@@ -68,7 +60,7 @@
         .nav-title { font-size: 20px; font-weight: 700; }
         .icon-btn { background: none; border: none; color: white; cursor: pointer; padding: 8px; }
 
-        /* 功能選單 */
+        /* 頂部選單 (導入導出用) */
         .menu-options {
             position: absolute; top: 60px; right: 10px;
             background: #333; border-radius: 8px; padding: 10px;
@@ -78,32 +70,62 @@
         .menu-item { padding: 10px 20px; color: white; cursor: pointer; font-size: 14px; }
         .menu-item:hover { background: #444; }
 
-        /* 隨機播放按鈕 */
         .shuffle-header {
             padding: 10px 20px; display: flex; align-items: center; color: var(--primary-color);
             font-weight: bold; cursor: pointer;
         }
         .shuffle-header span { margin-left: 10px; }
 
-        /* 歌曲列表區 */
-        .song-list {
-            flex: 1; overflow-y: auto; padding: 0 20px;
-        }
+        .song-list { flex: 1; overflow-y: auto; padding: 0 20px; }
         .song-item {
             display: flex; align-items: center; padding: 12px 0;
             border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer;
+            position: relative; /* 定位用 */
         }
-        .song-cover-thumb {
-            width: 50px; height: 50px; border-radius: 6px; object-fit: cover; margin-right: 15px;
-        }
+        .song-cover-thumb { width: 50px; height: 50px; border-radius: 6px; object-fit: cover; margin-right: 15px; }
         .song-info-list { flex: 1; min-width: 0; }
         .song-title-list { font-size: 16px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .song-artist-list { font-size: 13px; color: var(--text-sub); margin-top: 4px; }
+        
         .song-actions { display: flex; align-items: center; }
         .fav-icon { color: #666; margin-left: 10px; }
         .fav-icon.active { color: #ff4757; }
 
-        /* 底部迷你播放器 */
+        /* ★★★ 浮動快顯選單 (Popup Menu) ★★★ */
+        .context-menu {
+            position: fixed; /* 固定在螢幕上，座標由 JS 計算 */
+            background-color: var(--menu-bg);
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.8);
+            width: 160px;
+            display: none; /* 預設隱藏 */
+            z-index: 999;
+            overflow: hidden;
+            animation: popIn 0.2s ease-out;
+        }
+        @keyframes popIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .context-item {
+            padding: 12px 15px;
+            color: white;
+            font-size: 14px;
+            display: flex; align-items: center;
+            cursor: pointer;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .context-item:last-child { border-bottom: none; }
+        .context-item:hover { background-color: #444; }
+        .context-item span.material-icons-round { margin-right: 10px; font-size: 18px; color: #ccc; }
+        
+        /* 透明遮罩 (點擊別處關閉選單用) */
+        .context-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 998; display: none;
+        }
+
+        /* 迷你播放器 */
         .mini-player {
             position: absolute; bottom: 0; left: 0; width: 100%; height: 70px;
             background: #222; border-top: 1px solid #333;
@@ -115,7 +137,7 @@
         .mini-artist { font-size: 12px; color: #aaa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .mini-controls button { font-size: 32px; color: white; background: none; border: none; }
 
-        /* --- 2. 播放器頁面 (Player View) --- */
+        /* --- 2. 播放器頁面 --- */
         #player-view {
             width: 100%; height: 100%;
             position: absolute; top: 0; left: 0;
@@ -126,7 +148,6 @@
         }
         #player-view.active { transform: translateY(0); }
 
-        /* 動態模糊背景 */
         #player-bg {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background-size: cover; background-position: center;
@@ -134,15 +155,9 @@
             transition: background-image 0.5s ease;
         }
 
-        /* 播放器頂部 */
-        .player-nav {
-            padding: 20px; display: flex; justify-content: space-between; align-items: center; color: white;
-        }
+        .player-nav { padding: 20px; display: flex; justify-content: space-between; align-items: center; color: white; }
 
-        /* 黑膠唱片區 */
-        .vinyl-area {
-            flex: 1; display: flex; justify-content: center; align-items: center; position: relative;
-        }
+        .vinyl-area { flex: 1; display: flex; justify-content: center; align-items: center; position: relative; }
         .tone-arm {
             position: absolute; top: 0; right: 40px; width: 80px; height: 120px;
             background: url('https://cdn-icons-png.flaticon.com/512/3067/3067403.png') no-repeat center/contain;
@@ -164,7 +179,6 @@
             position: relative;
         }
         .vinyl-record.playing { animation-play-state: running; }
-        
         .vinyl-record::before {
             content: ''; position: absolute; width: 95%; height: 95%;
             border-radius: 50%;
@@ -172,20 +186,15 @@
             z-index: 1;
         }
 
-        /* 封面圖片 */
         .album-art {
             width: 180px; height: 180px; border-radius: 50%;
             background-size: cover; background-position: center;
             z-index: 2; position: relative;
             box-shadow: 0 0 0 5px #111;
         }
-
         @keyframes rotate { 100% { transform: rotate(360deg); } }
 
-        /* 播放器控制器區 */
-        .player-controls-area {
-            padding: 30px; display: flex; flex-direction: column;
-        }
+        .player-controls-area { padding: 30px; display: flex; flex-direction: column; }
         .player-info { text-align: center; margin-bottom: 20px; }
         .player-title { font-size: 24px; font-weight: bold; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .player-artist { font-size: 16px; color: #ccc; }
@@ -202,7 +211,6 @@
             background: #fff; border-radius: 50%; cursor: pointer;
         }
 
-        /* 按鈕群 */
         .main-controls { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
         .ctrl-btn { background: none; border: none; color: white; cursor: pointer; }
         .play-pause-btn {
@@ -214,7 +222,6 @@
         .play-pause-btn .material-icons-round { font-size: 40px; }
 
         #player-fav-btn.active { color: #ff4757; }
-
     </style>
 </head>
 <body>
@@ -246,8 +253,7 @@
                 <span>隨機播放</span>
             </div>
 
-            <div class="song-list" id="song-list-container">
-                </div>
+            <div class="song-list" id="song-list-container"></div>
 
             <div class="mini-player" id="mini-player" onclick="openPlayer()">
                 <img src="" class="song-cover-thumb" id="mini-cover">
@@ -261,30 +267,40 @@
                     </button>
                 </div>
             </div>
+
+            <div id="context-overlay" class="context-overlay" onclick="hideContextMenu()"></div>
+            <div id="context-menu" class="context-menu">
+                <div class="context-item" onclick="fnPlayNext()">
+                    <span class="material-icons-round">playlist_play</span> 下一首播放
+                </div>
+                <div class="context-item" onclick="fnDownload()">
+                    <span class="material-icons-round">download</span> 下載
+                </div>
+                <div class="context-item" onclick="fnRemove()" style="color: #ff6b6b;">
+                    <span class="material-icons-round" style="color: #ff6b6b;">delete</span> 移除
+                </div>
+            </div>
+
         </div>
 
         <div id="player-view">
             <div id="player-bg"></div>
-
             <div class="player-nav">
                 <button class="icon-btn" onclick="closePlayer()"><span class="material-icons-round">keyboard_arrow_down</span></button>
                 <span>正在播放</span>
                 <button class="icon-btn"><span class="material-icons-round">queue_music</span></button>
             </div>
-
             <div class="vinyl-area">
                 <div class="tone-arm" id="tone-arm"></div>
                 <div class="vinyl-record" id="vinyl-record">
                     <div class="album-art" id="player-cover"></div>
                 </div>
             </div>
-
             <div class="player-controls-area">
                 <div class="player-info">
                     <div class="player-title" id="player-title">Song Title</div>
                     <div class="player-artist" id="player-artist">Unknown Artist</div>
                 </div>
-
                 <div class="main-controls" style="justify-content: space-around; margin-bottom: 20px;">
                     <button class="ctrl-btn" id="player-fav-btn" onclick="toggleFavorite()"><span class="material-icons-round">favorite_border</span></button>
                     <button class="ctrl-btn"><span class="material-icons-round">add</span></button>
@@ -292,7 +308,6 @@
                     <button class="ctrl-btn"><span class="material-icons-round">timer</span></button>
                     <button class="ctrl-btn"><span class="material-icons-round">playlist_play</span></button>
                 </div>
-
                 <div class="progress-bar-container">
                     <input type="range" id="progress-bar" value="0" min="0" max="100">
                     <div class="time-labels">
@@ -300,7 +315,6 @@
                         <span id="total-time">0:00</span>
                     </div>
                 </div>
-
                 <div class="main-controls">
                     <button class="ctrl-btn" onclick="toggleShuffle()"><span class="material-icons-round" id="shuffle-icon">shuffle</span></button>
                     <button class="ctrl-btn" onclick="prevSong()"><span class="material-icons-round" style="font-size: 36px;">skip_previous</span></button>
@@ -312,17 +326,13 @@
                 </div>
             </div>
         </div>
-
     </div>
 
     <audio id="audio-element"></audio>
 
     <script>
-        // ============================================
-        // ★★★ 設定區 ★★★
         const USER = 'zihuanfeng520';
         const REPO = 'music-player';
-        // ============================================
 
         const audio = document.getElementById('audio-element');
         let allSongs = [];
@@ -336,6 +346,9 @@
         const vinylRecord = document.getElementById('vinyl-record');
         const toneArm = document.getElementById('tone-arm');
         const playerBg = document.getElementById('player-bg');
+
+        // ★★★ 選單相關變數 ★★★
+        let contextMenuTargetIndex = -1; // 記錄對哪首歌按了右鍵
         
         window.onload = async () => {
             await fetchFiles();
@@ -360,20 +373,14 @@
                 allSongs = musicData
                     .filter(file => file.name.match(/\.(mp3|wav|ogg|m4a|flac)$/i))
                     .map((file, index) => {
-                        const baseName = file.name.replace(/\.[^/.]+$/, ""); // 去除副檔名
+                        const baseName = file.name.replace(/\.[^/.]+$/, ""); 
                         const lowerName = baseName.toLowerCase();
-                        
-                        // ★★★ 修改：移除檔名解析邏輯 ★★★
-                        // 1. 標題直接用檔名
-                        let title = baseName;
-                        // 2. 歌手一律 Unknown
-                        let artist = "Unknown Artist"; 
                         
                         return {
                             id: index,
-                            title: title, 
-                            artist: artist,
-                            filename: baseName, // 保留原始檔名 (用於我的最愛)
+                            title: baseName, 
+                            artist: "Unknown Artist", // 列表預設 Unknown
+                            filename: baseName, 
                             url: file.download_url,
                             cover: picMap[lowerName] || defaultPic
                         };
@@ -405,10 +412,17 @@
                     </div>
                     <div class="song-actions">
                         ${isFav ? '<span class="material-icons-round fav-icon active">favorite</span>' : ''}
-                        <span class="material-icons-round" style="color:#aaa; margin-left:10px;">more_vert</span>
+                        <span class="material-icons-round" 
+                              style="color:#aaa; margin-left:10px; padding:10px; cursor: pointer;"
+                              onclick="showContextMenu(event, ${idx})">
+                            more_vert
+                        </span>
                     </div>
                 `;
-                div.onclick = () => {
+                // 點擊整行播放 (要排除那三個點點)
+                div.onclick = (e) => {
+                    // 如果點到的是 more_vert，不要觸發播放
+                    if(e.target.innerText === 'more_vert') return;
                     currentIndex = idx;
                     playSong();
                 };
@@ -416,15 +430,103 @@
             });
         }
 
+        // ★★★ 選單功能區 ★★★
+        
+        // 1. 顯示選單 (定位在點擊位置)
+        function showContextMenu(e, index) {
+            e.stopPropagation(); // 防止冒泡觸發播放
+            contextMenuTargetIndex = index;
+
+            const menu = document.getElementById('context-menu');
+            const overlay = document.getElementById('context-overlay');
+            
+            // 取得點擊按鈕的座標
+            const rect = e.target.getBoundingClientRect();
+            
+            // 計算選單位置：出現在按鈕的左下方
+            // (為了防止太靠右邊超出螢幕，我們靠右對齊)
+            let top = rect.bottom;
+            let right = window.innerWidth - rect.right; // 距離右邊界的距離
+
+            menu.style.top = top + 'px';
+            menu.style.right = right + 'px'; // 設定 right 比較安全
+            menu.style.display = 'block';
+            overlay.style.display = 'block';
+        }
+
+        // 2. 隱藏選單
+        function hideContextMenu() {
+            document.getElementById('context-menu').style.display = 'none';
+            document.getElementById('context-overlay').style.display = 'none';
+        }
+
+        // 3. 下一首播放
+        function fnPlayNext() {
+            hideContextMenu();
+            if(contextMenuTargetIndex === -1) return;
+
+            const song = currentPlaylist[contextMenuTargetIndex];
+            
+            // 如果就是現在在播的，不用動
+            if(contextMenuTargetIndex === currentIndex) return;
+
+            // 先從原本位置移除
+            currentPlaylist.splice(contextMenuTargetIndex, 1);
+            
+            // 如果移除的歌在目前播放歌曲的「上面」，currentIndex 要減 1，不然會播錯
+            if(contextMenuTargetIndex < currentIndex) {
+                currentIndex--;
+            }
+            
+            // 插隊到目前播放歌曲的「下一首」
+            currentPlaylist.splice(currentIndex + 1, 0, song);
+            
+            renderList(); // 重新渲染列表
+            // 不用 alert，直接看到列表變動就是最好的回饋
+        }
+
+        // 4. 下載
+        function fnDownload() {
+            hideContextMenu();
+            if(contextMenuTargetIndex === -1) return;
+            
+            const song = currentPlaylist[contextMenuTargetIndex];
+            const link = document.createElement('a');
+            link.href = song.url;
+            link.target = '_blank';
+            link.download = song.filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // 5. 移除 (本地)
+        function fnRemove() {
+            hideContextMenu();
+            if(contextMenuTargetIndex === -1) return;
+            
+            // 如果移除的是正在播的，自動切下一首
+            if(contextMenuTargetIndex === currentIndex) {
+                nextSong();
+            }
+
+            currentPlaylist.splice(contextMenuTargetIndex, 1);
+            
+            // 修正索引
+            if(contextMenuTargetIndex < currentIndex) {
+                currentIndex--;
+            }
+            
+            renderList();
+        }
+
+
         function loadSong(index, autoPlay = true) {
             if (index < 0 || index >= currentPlaylist.length) return;
             const song = currentPlaylist[index];
             
             audio.src = song.url;
-            
-            // ★ 呼叫智慧讀取 (128KB 斷點法)
             readID3Tags(song);
-            
             updateUI(song);
 
             if (autoPlay) {
@@ -433,41 +535,32 @@
             } else {
                 setPlayingState(false);
             }
-            
             renderList();
         }
 
-        // ★ ID3 讀取函式 (128KB)
         async function readID3Tags(song) {
             try {
                 const controller = new AbortController();
                 const signal = controller.signal;
-                
-                // 普通 fetch，騙過 CORS
                 const response = await fetch(song.url, { signal });
-                
                 if (!response.ok) return;
 
                 const reader = response.body.getReader();
                 let chunks = [];
                 let receivedLength = 0;
-                const LIMIT = 128 * 1024; // 128KB
+                const LIMIT = 128 * 1024; 
 
                 while (true) {
                     const { done, value } = await reader.read();
                     if (done) break;
-                    
                     chunks.push(value);
                     receivedLength += value.length;
-
                     if (receivedLength > LIMIT) {
-                        controller.abort(); // 切斷
+                        controller.abort();
                         break;
                     }
                 }
-
                 const blob = new Blob(chunks);
-
                 new jsmediatags.Reader(blob)
                     .setTagsToRead(["title", "artist"])
                     .read({
@@ -484,16 +577,9 @@
                                 song.artist = tags.artist;
                             }
                         },
-                        onError: function(error) {
-                            console.log('ID3 讀取失敗，維持 Unknown');
-                        }
+                        onError: function(error) {}
                     });
-
-            } catch (err) {
-                if (err.name !== 'AbortError') {
-                    console.log("Fetch 失敗:", err);
-                }
-            }
+            } catch (err) {}
         }
 
         function updateUI(song) {
@@ -516,9 +602,7 @@
             }
         }
 
-        function playSong() {
-            loadSong(currentIndex, true);
-        }
+        function playSong() { loadSong(currentIndex, true); }
 
         function togglePlay() {
             if (audio.paused) {
@@ -533,7 +617,6 @@
         function setPlayingState(isPlaying) {
             const icons = ['mini-play-icon', 'player-play-icon'];
             icons.forEach(id => document.getElementById(id).innerText = isPlaying ? 'pause' : 'play_arrow');
-            
             if (isPlaying) {
                 vinylRecord.classList.add('playing');
                 toneArm.classList.add('playing');
@@ -608,13 +691,8 @@
         function toggleFavorite() {
             const song = currentPlaylist[currentIndex];
             const idx = favorites.indexOf(song.filename);
-            
-            if (idx > -1) {
-                favorites.splice(idx, 1); 
-            } else {
-                favorites.push(song.filename); 
-            }
-            
+            if (idx > -1) { favorites.splice(idx, 1); } 
+            else { favorites.push(song.filename); }
             localStorage.setItem('myFavorites', JSON.stringify(favorites));
             updateUI(song); 
             renderList();   
@@ -663,7 +741,6 @@
             document.getElementById('repeat-icon').style.color = isRepeat ? 'var(--primary-color)' : 'white';
             audio.loop = false; 
         }
-
     </script>
 </body>
 </html>
