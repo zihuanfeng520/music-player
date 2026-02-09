@@ -375,11 +375,11 @@
                         const baseName = file.name.replace(/\.[^/.]+$/, ""); 
                         const lowerName = baseName.toLowerCase();
                         
-                        // ★★★ 修改：完全依照你的指示 ★★★
-                        // 1. 標題：完全保留原始檔名 (包含 - )
+                        // ★★★ 修改：嚴格遵守指示 ★★★
+                        // 1. 標題：完整檔名 (不切割)
                         let title = baseName;
                         
-                        // 2. 歌手：預設 Unknown，完全不猜測，只等讀取 ID3
+                        // 2. 歌手：一律預設 Unknown (不從檔名猜測)
                         let artist = "Unknown Artist";
                         
                         return {
