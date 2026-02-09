@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
     <style>
-        /* --- 全局變數與重置 --- */
+        /* --- 全局變數 --- */
         :root {
             --primary-color: #ffb703;
             --bg-color: #121212;
@@ -28,6 +28,7 @@
             user-select: none;
         }
 
+        /* --- 載入畫面 --- */
         #loading-screen {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: #000; z-index: 9999;
@@ -43,7 +44,7 @@
 
         #app-container { width: 100%; height: 100%; position: relative; }
 
-        /* --- 1. 列表頁面 --- */
+        /* --- 列表頁面 --- */
         #list-view {
             width: 100%; height: 100%;
             display: flex; flex-direction: column;
@@ -60,7 +61,6 @@
         .nav-title { font-size: 20px; font-weight: 700; }
         .icon-btn { background: none; border: none; color: white; cursor: pointer; padding: 8px; }
 
-        /* 頂部選單 (導入導出用) */
         .menu-options {
             position: absolute; top: 60px; right: 10px;
             background: #333; border-radius: 8px; padding: 10px;
@@ -84,46 +84,25 @@
         }
         .song-cover-thumb { width: 50px; height: 50px; border-radius: 6px; object-fit: cover; margin-right: 15px; }
         .song-info-list { flex: 1; min-width: 0; }
-        /* 讓歌名完整顯示，過長才省略 */
         .song-title-list { font-size: 16px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .song-artist-list { font-size: 13px; color: var(--text-sub); margin-top: 4px; }
-        
         .song-actions { display: flex; align-items: center; }
         .fav-icon { color: #666; margin-left: 10px; }
         .fav-icon.active { color: #ff4757; }
 
-        /* ★★★ 浮動快顯選單 (Popup Menu) ★★★ */
+        /* 浮動選單 (三點) */
         .context-menu {
-            position: fixed;
-            background-color: var(--menu-bg);
-            border-radius: 8px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.8);
-            width: 160px;
-            display: none;
-            z-index: 999;
-            overflow: hidden;
+            position: fixed; background-color: var(--menu-bg);
+            border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.8);
+            width: 160px; display: none; z-index: 999; overflow: hidden;
             animation: popIn 0.2s ease-out;
         }
-        @keyframes popIn {
-            from { opacity: 0; transform: scale(0.9); }
-            to { opacity: 1; transform: scale(1); }
-        }
-        .context-item {
-            padding: 12px 15px;
-            color: white;
-            font-size: 14px;
-            display: flex; align-items: center;
-            cursor: pointer;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
-        }
+        @keyframes popIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+        .context-item { padding: 12px 15px; color: white; font-size: 14px; display: flex; align-items: center; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.05); }
         .context-item:last-child { border-bottom: none; }
         .context-item:hover { background-color: #444; }
         .context-item span.material-icons-round { margin-right: 10px; font-size: 18px; color: #ccc; }
-        
-        .context-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 998; display: none;
-        }
+        .context-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 998; display: none; }
 
         /* 迷你播放器 */
         .mini-player {
@@ -137,17 +116,14 @@
         .mini-artist { font-size: 12px; color: #aaa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .mini-controls button { font-size: 32px; color: white; background: none; border: none; }
 
-        /* --- 2. 播放器頁面 --- */
+        /* --- 播放器頁面 --- */
         #player-view {
-            width: 100%; height: 100%;
-            position: absolute; top: 0; left: 0;
-            background: #000;
-            display: flex; flex-direction: column;
+            width: 100%; height: 100%; position: absolute; top: 0; left: 0;
+            background: #000; display: flex; flex-direction: column;
             transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
             z-index: 50; overflow: hidden;
         }
         #player-view.active { transform: translateY(0); }
-
         #player-bg {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background-size: cover; background-position: center;
@@ -156,41 +132,28 @@
         }
 
         .player-nav { padding: 20px; display: flex; justify-content: space-between; align-items: center; color: white; }
-
         .vinyl-area { flex: 1; display: flex; justify-content: center; align-items: center; position: relative; }
         .tone-arm {
             position: absolute; top: 0; right: 40px; width: 80px; height: 120px;
             background: url('https://cdn-icons-png.flaticon.com/512/3067/3067403.png') no-repeat center/contain;
             transform-origin: 65px 15px; transform: rotate(-30deg);
-            transition: transform 0.5s; z-index: 10; pointer-events: none;
-            filter: invert(1); opacity: 0.8;
+            transition: transform 0.5s; z-index: 10; pointer-events: none; filter: invert(1); opacity: 0.8;
         }
         .tone-arm.playing { transform: rotate(0deg); }
-
         .vinyl-record {
-            width: 280px; height: 280px;
-            background: radial-gradient(#111 50%, #000 51%);
-            border-radius: 50%;
-            border: 8px solid rgba(255,255,255,0.05);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            display: flex; justify-content: center; align-items: center;
-            animation: rotate 10s linear infinite;
-            animation-play-state: paused;
-            position: relative;
+            width: 280px; height: 280px; background: radial-gradient(#111 50%, #000 51%);
+            border-radius: 50%; border: 8px solid rgba(255,255,255,0.05);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center;
+            animation: rotate 10s linear infinite; animation-play-state: paused; position: relative;
         }
         .vinyl-record.playing { animation-play-state: running; }
         .vinyl-record::before {
-            content: ''; position: absolute; width: 95%; height: 95%;
-            border-radius: 50%;
-            background: repeating-radial-gradient(#111 0, #111 2px, #222 3px, #222 4px);
-            z-index: 1;
+            content: ''; position: absolute; width: 95%; height: 95%; border-radius: 50%;
+            background: repeating-radial-gradient(#111 0, #111 2px, #222 3px, #222 4px); z-index: 1;
         }
-
         .album-art {
-            width: 180px; height: 180px; border-radius: 50%;
-            background-size: cover; background-position: center;
-            z-index: 2; position: relative;
-            box-shadow: 0 0 0 5px #111;
+            width: 180px; height: 180px; border-radius: 50%; background-size: cover; background-position: center;
+            z-index: 2; position: relative; box-shadow: 0 0 0 5px #111;
         }
         @keyframes rotate { 100% { transform: rotate(360deg); } }
 
@@ -212,7 +175,7 @@
         }
 
         .main-controls { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
-        .ctrl-btn { background: none; border: none; color: white; cursor: pointer; }
+        .ctrl-btn { background: none; border: none; color: white; cursor: pointer; position: relative; }
         .play-pause-btn {
             width: 70px; height: 70px; background: white; border-radius: 50%;
             color: black; display: flex; justify-content: center; align-items: center;
@@ -220,8 +183,42 @@
         }
         .material-icons-round { font-size: 28px; }
         .play-pause-btn .material-icons-round { font-size: 40px; }
-
         #player-fav-btn.active { color: #ff4757; }
+
+        /* ★★★ 新增：EQ 和 Timer 彈窗樣式 ★★★ */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7); z-index: 200; display: none;
+            justify-content: center; align-items: center;
+        }
+        .modal-box {
+            background: #222; width: 85%; max-width: 320px; border-radius: 15px; padding: 20px;
+            color: white; box-shadow: 0 5px 20px rgba(0,0,0,0.5);
+        }
+        .modal-title { font-size: 18px; font-weight: bold; margin-bottom: 20px; text-align: center; }
+        
+        /* Timer 樣式 */
+        .timer-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .timer-btn {
+            background: #333; border: 1px solid #444; color: white; padding: 12px;
+            border-radius: 8px; cursor: pointer;
+        }
+        .timer-btn.active { background: var(--primary-color); color: black; font-weight: bold; }
+        #timer-display { text-align: center; margin-top: 15px; color: var(--primary-color); font-size: 14px; }
+        
+        /* EQ 樣式 */
+        .eq-sliders { display: flex; justify-content: space-between; height: 150px; }
+        .eq-band { display: flex; flex-direction: column; align-items: center; width: 18%; }
+        .eq-range { 
+            writing-mode: bt-lr; /* IE/Edge */
+            -webkit-appearance: slider-vertical; /* Chrome */
+            width: 8px; height: 100%; background: #444; 
+        }
+        .eq-label { font-size: 10px; color: #aaa; margin-top: 10px; }
+        .eq-reset { width: 100%; margin-top: 20px; padding: 10px; background: #333; color: white; border: none; border-radius: 8px; cursor: pointer; }
+
+        /* Timer 按鈕激活狀態 */
+        #btn-timer.active { color: var(--primary-color); }
     </style>
 </head>
 <body>
@@ -238,7 +235,6 @@
                 <span class="material-icons-round" style="opacity:0">menu</span>
                 <div class="nav-title">音樂播放器</div>
                 <button class="icon-btn" onclick="toggleMenu()"><span class="material-icons-round">more_vert</span></button>
-                
                 <div class="menu-options" id="menu-options">
                     <div class="menu-item" onclick="exportFavorites()">導出最愛列表</div>
                     <label class="menu-item" style="display:block">
@@ -270,17 +266,10 @@
 
             <div id="context-overlay" class="context-overlay" onclick="hideContextMenu()"></div>
             <div id="context-menu" class="context-menu">
-                <div class="context-item" onclick="fnPlayNext()">
-                    <span class="material-icons-round">playlist_play</span> 下一首播放
-                </div>
-                <div class="context-item" onclick="fnDownload()">
-                    <span class="material-icons-round">download</span> 下載
-                </div>
-                <div class="context-item" onclick="fnRemove()" style="color: #ff6b6b;">
-                    <span class="material-icons-round" style="color: #ff6b6b;">delete</span> 移除
-                </div>
+                <div class="context-item" onclick="fnPlayNext()"><span class="material-icons-round">playlist_play</span> 下一首播放</div>
+                <div class="context-item" onclick="fnDownload()"><span class="material-icons-round">download</span> 下載</div>
+                <div class="context-item" onclick="fnRemove()" style="color: #ff6b6b;"><span class="material-icons-round" style="color: #ff6b6b;">delete</span> 移除</div>
             </div>
-
         </div>
 
         <div id="player-view">
@@ -288,7 +277,7 @@
             <div class="player-nav">
                 <button class="icon-btn" onclick="closePlayer()"><span class="material-icons-round">keyboard_arrow_down</span></button>
                 <span>正在播放</span>
-                <button class="icon-btn"><span class="material-icons-round">queue_music</span></button>
+                <div style="width: 40px;"></div>
             </div>
             <div class="vinyl-area">
                 <div class="tone-arm" id="tone-arm"></div>
@@ -301,13 +290,13 @@
                     <div class="player-title" id="player-title">Song Title</div>
                     <div class="player-artist" id="player-artist">Unknown Artist</div>
                 </div>
-                <div class="main-controls" style="justify-content: space-around; margin-bottom: 20px;">
+
+                <div class="main-controls" style="justify-content: space-between; margin-bottom: 20px; padding: 0 20px;">
                     <button class="ctrl-btn" id="player-fav-btn" onclick="toggleFavorite()"><span class="material-icons-round">favorite_border</span></button>
-                    <button class="ctrl-btn"><span class="material-icons-round">add</span></button>
-                    <button class="ctrl-btn"><span class="material-icons-round">eq</span></button>
-                    <button class="ctrl-btn"><span class="material-icons-round">timer</span></button>
-                    <button class="ctrl-btn"><span class="material-icons-round">playlist_play</span></button>
-                </div>
+                    <button class="ctrl-btn" onclick="openEQ()"><span class="material-icons-round">graphic_eq</span></button>
+                    <button class="ctrl-btn" id="btn-timer" onclick="openTimer()"><span class="material-icons-round">timer</span></button>
+                    <button class="ctrl-btn" style="opacity:0; cursor:default"><span class="material-icons-round">playlist_play</span></button> </div>
+
                 <div class="progress-bar-container">
                     <input type="range" id="progress-bar" value="0" min="0" max="100">
                     <div class="time-labels">
@@ -326,9 +315,37 @@
                 </div>
             </div>
         </div>
+
+        <div id="eq-modal" class="modal-overlay" onclick="closeModals(event)">
+            <div class="modal-box">
+                <div class="modal-title">等化器 (EQ)</div>
+                <div class="eq-sliders">
+                    <div class="eq-band"><input type="range" class="eq-range" min="-12" max="12" value="0" data-freq="60" oninput="updateEQ(this)"><div class="eq-label">60</div></div>
+                    <div class="eq-band"><input type="range" class="eq-range" min="-12" max="12" value="0" data-freq="250" oninput="updateEQ(this)"><div class="eq-label">250</div></div>
+                    <div class="eq-band"><input type="range" class="eq-range" min="-12" max="12" value="0" data-freq="1000" oninput="updateEQ(this)"><div class="eq-label">1k</div></div>
+                    <div class="eq-band"><input type="range" class="eq-range" min="-12" max="12" value="0" data-freq="4000" oninput="updateEQ(this)"><div class="eq-label">4k</div></div>
+                    <div class="eq-band"><input type="range" class="eq-range" min="-12" max="12" value="0" data-freq="16000" oninput="updateEQ(this)"><div class="eq-label">16k</div></div>
+                </div>
+                <button class="eq-reset" onclick="resetEQ()">重置</button>
+            </div>
+        </div>
+
+        <div id="timer-modal" class="modal-overlay" onclick="closeModals(event)">
+            <div class="modal-box">
+                <div class="modal-title">睡眠定時器</div>
+                <div class="timer-options">
+                    <button class="timer-btn" onclick="setTimer(15)">15 分鐘</button>
+                    <button class="timer-btn" onclick="setTimer(30)">30 分鐘</button>
+                    <button class="timer-btn" onclick="setTimer(60)">60 分鐘</button>
+                    <button class="timer-btn" onclick="setTimer(0)">關閉定時</button>
+                </div>
+                <div id="timer-display"></div>
+            </div>
+        </div>
+
     </div>
 
-    <audio id="audio-element"></audio>
+    <audio id="audio-element" crossorigin="anonymous"></audio>
 
     <script>
         const USER = 'zihuanfeng520';
@@ -347,7 +364,17 @@
         const toneArm = document.getElementById('tone-arm');
         const playerBg = document.getElementById('player-bg');
 
-        let contextMenuTargetIndex = -1; 
+        let contextMenuTargetIndex = -1;
+
+        // ★★★ EQ 變數 ★★★
+        let audioCtx;
+        let sourceNode;
+        let filters = [];
+        const frequencies = [60, 250, 1000, 4000, 16000];
+
+        // ★★★ Timer 變數 ★★★
+        let timerInterval;
+        let timerTargetTime = null;
         
         window.onload = async () => {
             await fetchFiles();
@@ -374,32 +401,19 @@
                     .map((file, index) => {
                         const baseName = file.name.replace(/\.[^/.]+$/, ""); 
                         const lowerName = baseName.toLowerCase();
-                        
-                        // ★★★ 修改：嚴格遵守指示 ★★★
-                        // 1. 標題：完整檔名 (不切割)
                         let title = baseName;
-                        
-                        // 2. 歌手：一律預設 Unknown (不從檔名猜測)
                         let artist = "Unknown Artist";
-                        
                         return {
-                            id: index,
-                            title: title, 
-                            artist: artist, 
-                            filename: baseName, 
-                            url: file.download_url,
-                            cover: picMap[lowerName] || defaultPic
+                            id: index, title: title, artist: artist, filename: baseName, 
+                            url: file.download_url, cover: picMap[lowerName] || defaultPic
                         };
                     });
                 
                 currentPlaylist = [...allSongs];
-                
-                if(allSongs.length > 0) {
-                    loadSong(0, false); 
-                }
+                if(allSongs.length > 0) loadSong(0, false); 
 
             } catch (e) {
-                document.getElementById('loading-text').innerText = "讀取失敗，請檢查網路或 GitHub 設定";
+                document.getElementById('loading-text').innerText = "讀取失敗";
                 console.error(e);
             }
         }
@@ -418,11 +432,7 @@
                     </div>
                     <div class="song-actions">
                         ${isFav ? '<span class="material-icons-round fav-icon active">favorite</span>' : ''}
-                        <span class="material-icons-round" 
-                              style="color:#aaa; margin-left:10px; padding:10px; cursor: pointer;"
-                              onclick="showContextMenu(event, ${idx})">
-                            more_vert
-                        </span>
+                        <span class="material-icons-round" style="color:#aaa; margin-left:10px; padding:10px; cursor: pointer;" onclick="showContextMenu(event, ${idx})">more_vert</span>
                     </div>
                 `;
                 div.onclick = (e) => {
@@ -434,84 +444,53 @@
             });
         }
 
-        // ★★★ 選單功能 ★★★
+        // --- 選單 ---
         function showContextMenu(e, index) {
-            e.stopPropagation(); 
-            contextMenuTargetIndex = index;
-
+            e.stopPropagation(); contextMenuTargetIndex = index;
             const menu = document.getElementById('context-menu');
             const overlay = document.getElementById('context-overlay');
-            
             const rect = e.target.getBoundingClientRect();
-            let top = rect.bottom;
-            let right = window.innerWidth - rect.right; 
-
-            menu.style.top = top + 'px';
-            menu.style.right = right + 'px'; 
-            menu.style.display = 'block';
-            overlay.style.display = 'block';
+            menu.style.top = rect.bottom + 'px';
+            menu.style.right = (window.innerWidth - rect.right) + 'px'; 
+            menu.style.display = 'block'; overlay.style.display = 'block';
         }
-
         function hideContextMenu() {
             document.getElementById('context-menu').style.display = 'none';
             document.getElementById('context-overlay').style.display = 'none';
         }
-
-        // 下一首播放
         function fnPlayNext() {
-            hideContextMenu();
-            if(contextMenuTargetIndex === -1) return;
-
+            hideContextMenu(); if(contextMenuTargetIndex === -1 || contextMenuTargetIndex === currentIndex) return;
             const song = currentPlaylist[contextMenuTargetIndex];
-            if(contextMenuTargetIndex === currentIndex) return;
-
             currentPlaylist.splice(contextMenuTargetIndex, 1);
-            if(contextMenuTargetIndex < currentIndex) {
-                currentIndex--;
-            }
+            if(contextMenuTargetIndex < currentIndex) currentIndex--;
             currentPlaylist.splice(currentIndex + 1, 0, song);
             renderList(); 
         }
-
-        // 下載
         function fnDownload() {
-            hideContextMenu();
-            if(contextMenuTargetIndex === -1) return;
-            
+            hideContextMenu(); if(contextMenuTargetIndex === -1) return;
             const song = currentPlaylist[contextMenuTargetIndex];
             const link = document.createElement('a');
-            link.href = song.url;
-            link.target = '_blank';
-            link.download = song.filename;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            link.href = song.url; link.target = '_blank'; link.download = song.filename;
+            document.body.appendChild(link); link.click(); document.body.removeChild(link);
         }
-
-        // 移除
         function fnRemove() {
-            hideContextMenu();
-            if(contextMenuTargetIndex === -1) return;
-            
-            if(contextMenuTargetIndex === currentIndex) {
-                nextSong();
-            }
-
+            hideContextMenu(); if(contextMenuTargetIndex === -1) return;
+            if(contextMenuTargetIndex === currentIndex) nextSong();
             currentPlaylist.splice(contextMenuTargetIndex, 1);
-            if(contextMenuTargetIndex < currentIndex) {
-                currentIndex--;
-            }
+            if(contextMenuTargetIndex < currentIndex) currentIndex--;
             renderList();
         }
 
         function loadSong(index, autoPlay = true) {
             if (index < 0 || index >= currentPlaylist.length) return;
             const song = currentPlaylist[index];
-            
             audio.src = song.url;
+            
+            // ★ 初始化 EQ (如果還沒初始化)
+            initAudioContext();
+
             readID3Tags(song);
             updateUI(song);
-
             if (autoPlay) {
                 audio.play().catch(e => console.log("播放阻擋", e));
                 setPlayingState(true);
@@ -521,9 +500,118 @@
             renderList();
         }
 
+        // ★★★ EQ 邏輯 ★★★
+        function initAudioContext() {
+            if (audioCtx) return; // 已經初始化過
+            
+            // 建立 AudioContext
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContext();
+            
+            // 建立音源節點
+            sourceNode = audioCtx.createMediaElementSource(audio);
+            
+            // 建立濾波器
+            let prevNode = sourceNode;
+            frequencies.forEach(freq => {
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'peaking'; // 峰值濾波器
+                filter.frequency.value = freq;
+                filter.Q.value = 1; // 頻寬
+                filter.gain.value = 0; // 預設 0dB
+                
+                prevNode.connect(filter); // 串聯
+                prevNode = filter;
+                filters.push(filter);
+            });
+            
+            // 最後連到喇叭
+            prevNode.connect(audioCtx.destination);
+        }
+
+        function openEQ() {
+            document.getElementById('eq-modal').style.display = 'flex';
+        }
+
+        function updateEQ(input) {
+            const freq = parseInt(input.dataset.freq);
+            const gain = parseInt(input.value);
+            const index = frequencies.indexOf(freq);
+            if (filters[index]) {
+                filters[index].gain.value = gain;
+            }
+        }
+
+        function resetEQ() {
+            const inputs = document.querySelectorAll('.eq-range');
+            inputs.forEach(input => {
+                input.value = 0;
+                updateEQ(input);
+            });
+        }
+
+        // ★★★ Timer 邏輯 ★★★
+        function openTimer() {
+            document.getElementById('timer-modal').style.display = 'flex';
+            updateTimerUI();
+        }
+
+        function setTimer(minutes) {
+            clearInterval(timerInterval);
+            document.getElementById('btn-timer').classList.remove('active');
+            
+            if (minutes === 0) {
+                timerTargetTime = null;
+                document.getElementById('timer-display').innerText = "定時已關閉";
+                return;
+            }
+
+            const now = new Date().getTime();
+            timerTargetTime = now + minutes * 60 * 1000;
+            
+            document.getElementById('btn-timer').classList.add('active');
+            updateTimerUI();
+            
+            timerInterval = setInterval(() => {
+                const now = new Date().getTime();
+                const distance = timerTargetTime - now;
+
+                if (distance < 0) {
+                    clearInterval(timerInterval);
+                    audio.pause();
+                    setPlayingState(false);
+                    timerTargetTime = null;
+                    document.getElementById('btn-timer').classList.remove('active');
+                    alert("定時結束，音樂暫停");
+                } else {
+                    // 更新倒數顯示 (如果視窗開著)
+                    if(document.getElementById('timer-modal').style.display === 'flex') {
+                        updateTimerUI();
+                    }
+                }
+            }, 1000);
+        }
+
+        function updateTimerUI() {
+            if (!timerTargetTime) {
+                document.getElementById('timer-display').innerText = "";
+                return;
+            }
+            const now = new Date().getTime();
+            const distance = timerTargetTime - now;
+            const m = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+            const s = Math.floor((distance % (1000 * 60)) / 1000);
+            document.getElementById('timer-display').innerText = `剩餘時間: ${m}分 ${s}秒`;
+        }
+
+        function closeModals(e) {
+            if (e.target.classList.contains('modal-overlay')) {
+                e.target.style.display = 'none';
+            }
+        }
+
         async function readID3Tags(song) {
             try {
-                // 這裡使用了 AbortController 來確保只下載前 128KB
                 const controller = new AbortController();
                 const signal = controller.signal;
                 const response = await fetch(song.url, { signal });
@@ -532,19 +620,14 @@
                 const reader = response.body.getReader();
                 let chunks = [];
                 let receivedLength = 0;
-                const LIMIT = 128 * 1024; // 128KB 限制
+                const LIMIT = 128 * 1024; 
 
                 while (true) {
                     const { done, value } = await reader.read();
                     if (done) break;
                     chunks.push(value);
                     receivedLength += value.length;
-                    
-                    // ★ 關鍵：超過 128KB 直接切斷連線！
-                    if (receivedLength > LIMIT) {
-                        controller.abort(); 
-                        break;
-                    }
+                    if (receivedLength > LIMIT) { controller.abort(); break; }
                 }
                 const blob = new Blob(chunks);
                 new jsmediatags.Reader(blob)
@@ -555,12 +638,10 @@
                             if (tags.title) {
                                 document.getElementById('player-title').innerText = tags.title;
                                 document.getElementById('mini-title').innerText = tags.title;
-                                // 我們不覆蓋 song.title，保留完整檔名顯示
                             }
                             if (tags.artist) {
                                 document.getElementById('player-artist').innerText = tags.artist;
                                 document.getElementById('mini-artist').innerText = tags.artist;
-                                // ★ 只有在讀到 tag 時才更新歌手，否則維持 Unknown
                                 song.artist = tags.artist; 
                             }
                         },
@@ -573,7 +654,6 @@
             document.getElementById('mini-title').innerText = song.title;
             document.getElementById('mini-artist').innerText = song.artist;
             document.getElementById('mini-cover').src = song.cover;
-            
             document.getElementById('player-title').innerText = song.title;
             document.getElementById('player-artist').innerText = song.artist;
             document.getElementById('player-cover').style.backgroundImage = `url('${song.cover}')`;
@@ -581,57 +661,39 @@
             
             const favBtn = document.getElementById('player-fav-btn');
             if(favorites.includes(song.filename)) {
-                favBtn.classList.add('active');
-                favBtn.innerHTML = '<span class="material-icons-round">favorite</span>';
+                favBtn.classList.add('active'); favBtn.innerHTML = '<span class="material-icons-round">favorite</span>';
             } else {
-                favBtn.classList.remove('active');
-                favBtn.innerHTML = '<span class="material-icons-round">favorite_border</span>';
+                favBtn.classList.remove('active'); favBtn.innerHTML = '<span class="material-icons-round">favorite_border</span>';
             }
         }
 
         function playSong() { loadSong(currentIndex, true); }
-
         function togglePlay() {
-            if (audio.paused) {
-                audio.play();
-                setPlayingState(true);
-            } else {
-                audio.pause();
-                setPlayingState(false);
+            // ★ 重要：如果是第一次播放，必須由使用者手動觸發 Resume，不然 AudioContext 會被瀏覽器暫停
+            if(audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
             }
-        }
 
+            if (audio.paused) { audio.play(); setPlayingState(true); } 
+            else { audio.pause(); setPlayingState(false); }
+        }
         function setPlayingState(isPlaying) {
             const icons = ['mini-play-icon', 'player-play-icon'];
             icons.forEach(id => document.getElementById(id).innerText = isPlaying ? 'pause' : 'play_arrow');
-            if (isPlaying) {
-                vinylRecord.classList.add('playing');
-                toneArm.classList.add('playing');
-            } else {
-                vinylRecord.classList.remove('playing');
-                toneArm.classList.remove('playing');
-            }
+            if (isPlaying) { vinylRecord.classList.add('playing'); toneArm.classList.add('playing'); } 
+            else { vinylRecord.classList.remove('playing'); toneArm.classList.remove('playing'); }
         }
-
         function nextSong() {
-            if (isShuffle) {
-                currentIndex = Math.floor(Math.random() * currentPlaylist.length);
-            } else {
-                currentIndex = (currentIndex + 1) % currentPlaylist.length;
-            }
+            currentIndex = isShuffle ? Math.floor(Math.random() * currentPlaylist.length) : (currentIndex + 1) % currentPlaylist.length;
             playSong();
         }
-
         function prevSong() {
             currentIndex = (currentIndex - 1 + currentPlaylist.length) % currentPlaylist.length;
             playSong();
         }
-        
         function playRandom() {
-            isShuffle = true;
-            document.getElementById('shuffle-icon').style.color = 'var(--primary-color)';
-            nextSong();
-            openPlayer();
+            isShuffle = true; document.getElementById('shuffle-icon').style.color = 'var(--primary-color)';
+            nextSong(); openPlayer();
         }
 
         audio.ontimeupdate = () => {
@@ -640,94 +702,52 @@
             document.getElementById('curr-time').innerText = formatTime(audio.currentTime);
             document.getElementById('total-time').innerText = formatTime(audio.duration || 0);
         };
-        
         audio.onended = () => {
-            if (isRepeat) {
-                audio.currentTime = 0;
-                audio.play();
-            } else {
-                nextSong();
-            }
+            if (isRepeat) { audio.currentTime = 0; audio.play(); } 
+            else { nextSong(); }
         };
-
         document.getElementById('progress-bar').oninput = (e) => {
             const time = (e.target.value / 100) * audio.duration;
             audio.currentTime = time;
         };
-
         function formatTime(s) {
-            const min = Math.floor(s / 60);
-            const sec = Math.floor(s % 60);
+            const min = Math.floor(s / 60); const sec = Math.floor(s % 60);
             return `${min}:${sec < 10 ? '0'+sec : sec}`;
         }
-
         function openPlayer() { document.getElementById('player-view').classList.add('active'); }
         function closePlayer() { document.getElementById('player-view').classList.remove('active'); }
-        
         function toggleMenu() {
-            const menu = document.getElementById('menu-options');
-            menu.classList.toggle('show');
+            const menu = document.getElementById('menu-options'); menu.classList.toggle('show');
             document.addEventListener('click', function close(e) {
-                if(!e.target.closest('.nav-bar')) {
-                    menu.classList.remove('show');
-                    document.removeEventListener('click', close);
-                }
+                if(!e.target.closest('.nav-bar')) { menu.classList.remove('show'); document.removeEventListener('click', close); }
             });
         }
-
         function toggleFavorite() {
-            const song = currentPlaylist[currentIndex];
-            const idx = favorites.indexOf(song.filename);
-            if (idx > -1) { favorites.splice(idx, 1); } 
-            else { favorites.push(song.filename); }
-            localStorage.setItem('myFavorites', JSON.stringify(favorites));
-            updateUI(song); 
-            renderList();   
+            const song = currentPlaylist[currentIndex]; const idx = favorites.indexOf(song.filename);
+            if (idx > -1) { favorites.splice(idx, 1); } else { favorites.push(song.filename); }
+            localStorage.setItem('myFavorites', JSON.stringify(favorites)); updateUI(song); renderList();
         }
-
         function exportFavorites() {
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(favorites));
-            const downloadAnchorNode = document.createElement('a');
-            downloadAnchorNode.setAttribute("href", dataStr);
-            downloadAnchorNode.setAttribute("download", "my_fav_songs.json");
-            document.body.appendChild(downloadAnchorNode);
-            downloadAnchorNode.click();
-            downloadAnchorNode.remove();
+            const link = document.createElement('a'); link.href = dataStr; link.download = "my_fav_songs.json";
+            document.body.appendChild(link); link.click(); link.remove();
         }
-
         function importFavorites(input) {
-            const file = input.files[0];
-            if (!file) return;
+            const file = input.files[0]; if (!file) return;
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
                     const imported = JSON.parse(e.target.result);
                     if (Array.isArray(imported)) {
-                        favorites = imported;
-                        localStorage.setItem('myFavorites', JSON.stringify(favorites));
-                        alert("導入成功！");
-                        renderList();
-                        if(currentPlaylist[currentIndex]) updateUI(currentPlaylist[currentIndex]);
-                    } else {
-                        alert("檔案格式錯誤");
-                    }
-                } catch (err) {
-                    alert("讀取失敗");
-                }
+                        favorites = imported; localStorage.setItem('myFavorites', JSON.stringify(favorites));
+                        alert("導入成功！"); renderList(); if(currentPlaylist[currentIndex]) updateUI(currentPlaylist[currentIndex]);
+                    } else { alert("檔案格式錯誤"); }
+                } catch (err) { alert("讀取失敗"); }
             };
             reader.readAsText(file);
         }
-
-        function toggleShuffle() {
-            isShuffle = !isShuffle;
-            document.getElementById('shuffle-icon').style.color = isShuffle ? 'var(--primary-color)' : 'white';
-        }
-        
-        function toggleRepeat() {
-            isRepeat = !isRepeat;
-            document.getElementById('repeat-icon').style.color = isRepeat ? 'var(--primary-color)' : 'white';
-            audio.loop = false; 
-        }
+        function toggleShuffle() { isShuffle = !isShuffle; document.getElementById('shuffle-icon').style.color = isShuffle ? 'var(--primary-color)' : 'white'; }
+        function toggleRepeat() { isRepeat = !isRepeat; document.getElementById('repeat-icon').style.color = isRepeat ? 'var(--primary-color)' : 'white'; audio.loop = false; }
     </script>
 </body>
 </html>
