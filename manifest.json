@@ -1,0 +1,20 @@
+{
+  "name": "GitHub Music Player",
+  "short_name": "MusicPlayer",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#121212",
+  "theme_color": "#ffb703",
+  "icons": [
+    {
+      "src": "./picture/logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "./picture/logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
