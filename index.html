@@ -533,6 +533,14 @@
             switchTab('all');
             document.getElementById('loading-screen').style.opacity = '0';
             setTimeout(() => document.getElementById('loading-screen').style.display = 'none', 500);
+
+            // ★★★ 初始化 Media Session Action Handlers ★★★
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.setActionHandler('play', () => togglePlay());
+                navigator.mediaSession.setActionHandler('pause', () => togglePlay());
+                navigator.mediaSession.setActionHandler('previoustrack', () => prevSong());
+                navigator.mediaSession.setActionHandler('nexttrack', () => nextSong());
+            }
         };
 
         async function fetchFiles() {
@@ -742,6 +750,15 @@
                 }
             }
 
+            // ★★★ 更新 Media Session Metadata (基本檔名) ★★★
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.metadata = new MediaMetadata({
+                    title: song.title,
+                    artist: song.artist,
+                    artwork: [{ src: song.cover, sizes: '512x512', type: 'image/jpeg' }]
+                });
+            }
+
             if (autoPlay) {
                 if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
                 audio.play().catch(e => console.log("播放阻擋", e));
@@ -819,12 +836,27 @@
                 new jsmediatags.Reader(blob).setTagsToRead(["title", "artist"]).read({
                     onSuccess: function(tag) {
                         const tags = tag.tags;
-                        /* if (tags.title) {
-                            document.getElementById('player-title').innerText = tags.title;
-                            document.getElementById('mini-title').innerText = tags.title;
-                        } 
-                        */
-                        if (tags.artist) document.getElementById('player-artist').innerText = tags.artist; document.getElementById('mini-artist').innerText = tags.artist; song.artist = tags.artist; 
+                        if (tags.title) {
+                            /* if (tags.title) {
+                                document.getElementById('player-title').innerText = tags.title;
+                                document.getElementById('mini-title').innerText = tags.title;
+                            } */
+                            
+                            // ★★★ 更新 Media Session Metadata (當讀取到正確 ID3 時) ★★★
+                            if ('mediaSession' in navigator) {
+                                navigator.mediaSession.metadata.title = tags.title;
+                            }
+                        }
+                        if (tags.artist) {
+                            document.getElementById('player-artist').innerText = tags.artist;
+                            document.getElementById('mini-artist').innerText = tags.artist;
+                            song.artist = tags.artist; 
+                            
+                            // ★★★ 更新 Media Session Metadata (當讀取到正確 ID3 時) ★★★
+                            if ('mediaSession' in navigator) {
+                                navigator.mediaSession.metadata.artist = tags.artist;
+                            }
+                        }
                     }, onError: function(error) {}
                 });
             } catch (err) {}
