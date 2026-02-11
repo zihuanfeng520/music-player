@@ -201,6 +201,8 @@
             z-index: 10; pointer-events: none; 
         }
         
+        .tone-arm.playing { transform: rotate(28deg); }
+        
         .tone-arm::before {
             content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
             width: 24px; height: 24px; border-radius: 50%;
@@ -269,7 +271,6 @@
         /* 音量浮動視窗 */
         .volume-container { position: relative; display: flex; justify-content: center; align-items: center; }
         
-        /* ★★★ 修改：背景框寬度縮小為 140px ★★★ */
         .volume-popup {
             position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
             width: 140px; height: 50px; background: rgba(34, 34, 34, 0.9); 
@@ -280,9 +281,9 @@
         }
         .volume-popup.show { opacity: 1; bottom: 60px; pointer-events: auto; }
         
-        /* ★★★ 修改：滑桿寬度強制設為 100px ★★★ */
+        /* 橫向滑桿 */
         .horizontal-slider-popup { 
-            width: 100px !important; /* 加了 !important 強制生效 */
+            width: 100px !important; 
             height: 4px; 
             background: rgba(255,255,255,0.3); 
             border-radius: 2px; 
@@ -303,7 +304,31 @@
         
         .eq-sliders { display: flex; justify-content: space-between; height: 150px; }
         .eq-band { display: flex; flex-direction: column; align-items: center; width: 18%; }
-        .eq-range { writing-mode: bt-lr; -webkit-appearance: slider-vertical; width: 8px; height: 100%; background: #444; }
+        
+        /* ★★★ 修改：修復 EQ 直立滑桿樣式，加上 !important ★★★ */
+        .eq-range { 
+            -webkit-appearance: none; 
+            appearance: none;
+            writing-mode: vertical-lr; /* 直立模式 */
+            direction: rtl; /* 最大值在上方 */
+            
+            width: 8px !important; 
+            height: 100% !important; 
+            
+            background: #444; 
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 0;
+        }
+        .eq-range::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #fff;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
         .eq-label { font-size: 10px; color: #aaa; margin-top: 10px; }
         .eq-reset { width: 100%; margin-top: 20px; padding: 10px; background: #333; color: white; border: none; border-radius: 8px; cursor: pointer; }
         #btn-timer.active { color: var(--primary-color); }
@@ -561,7 +586,10 @@
 
                         return {
                             id: index, title: title, artist: artist, filename: baseName, 
-                            url: file.download_url, 
+                            
+                            // ★★★ 修復：替換 URL 中的 # 為 %23，解決 404 錯誤 ★★★
+                            url: file.download_url.replace(/#/g, '%23'),
+                            
                             cover: cover,
                             isDefault: isDefault, 
                             album: "" 
@@ -754,7 +782,8 @@
 
             if ('mediaSession' in navigator) {
                 navigator.mediaSession.metadata = new MediaMetadata({
-                    title: song.title, artist: song.artist,
+                    title: song.title,
+                    artist: song.artist,
                     artwork: [{ src: song.cover, sizes: '512x512', type: 'image/jpeg' }]
                 });
             }
@@ -769,11 +798,16 @@
             renderList();
         }
 
+        // ★★★ 跑馬燈檢查函式 (通用版) ★★★
         function setTextAnimation(elementId, text) {
             const container = document.getElementById(elementId);
             if (!container) return;
+            
+            // 先清空內容，建立內層的 span
             container.innerHTML = `<span class="scroll-text">${text}</span>`;
             const span = container.querySelector('.scroll-text');
+            
+            // 檢查：如果內文寬度 (scrollWidth) 大於 容器寬度 (clientWidth)，就加上動畫 class
             if (span.scrollWidth > container.clientWidth) {
                 span.classList.add('scrolling');
             } else {
@@ -810,7 +844,9 @@
         function setTimer(minutes) {
             clearInterval(timerInterval);
             document.getElementById('btn-timer').classList.remove('active');
-            if (minutes === 0) { timerTargetTime = null; document.getElementById('timer-display').innerText = "定時已關閉"; return; }
+            if (minutes === 0) {
+                timerTargetTime = null; document.getElementById('timer-display').innerText = "定時已關閉"; return;
+            }
             const now = new Date().getTime(); timerTargetTime = now + minutes * 60 * 1000;
             document.getElementById('btn-timer').classList.add('active'); updateTimerUI();
             timerInterval = setInterval(() => {
@@ -863,6 +899,7 @@
                             document.getElementById('player-artist').innerText = tags.artist;
                             document.getElementById('mini-artist').innerText = tags.artist;
                             song.artist = tags.artist; 
+                            
                             if ('mediaSession' in navigator) navigator.mediaSession.metadata.artist = tags.artist;
                         }
                         
@@ -953,7 +990,6 @@
                 const safePercent = isNaN(percent) ? 0 : percent;
                 progressBar.value = safePercent;
                 
-                // 動態更新唱臂角度
                 const armPercent = (audio.currentTime / audio.duration) || 0;
                 const angle = 9 + (13 * armPercent);
                 document.getElementById('tone-arm').style.transform = `rotate(${angle}deg)`;
@@ -1016,7 +1052,6 @@
             audio.currentTime = time;
             document.getElementById('curr-time').innerText = formatTime(time);
             
-            // 拖曳時即時更新唱臂
             const percent = e.target.value / 100;
             const angle = 9 + (13 * percent);
             document.getElementById('tone-arm').style.transform = `rotate(${angle}deg)`;
