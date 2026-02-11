@@ -34,6 +34,11 @@
             user-select: none;
         }
 
+        /* 隱藏元素 (用於 PiP) */
+        .hidden-media {
+            position: absolute; top: 0; left: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; z-index: -100;
+        }
+
         #loading-screen {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: #000; z-index: 9999;
@@ -81,23 +86,16 @@
             width: 20px; height: 3px; background: var(--primary-color); border-radius: 2px;
         }
 
-        /* 搜尋欄樣式 */
-        .search-container {
-            padding: 10px 20px;
-            display: flex; justify-content: center;
-        }
+        /* 搜尋欄 */
+        .search-container { padding: 10px 20px; display: flex; justify-content: center; }
         .search-box {
-            position: relative; width: 100%;
-            background: rgba(255, 255, 255, 0.1);
+            position: relative; width: 100%; background: rgba(255, 255, 255, 0.1);
             border-radius: 8px; display: flex; align-items: center;
         }
-        .search-icon {
-            position: absolute; left: 10px; color: #aaa; font-size: 20px;
-        }
+        .search-icon { position: absolute; left: 10px; color: #aaa; font-size: 20px; }
         .search-input {
-            width: 100%; background: transparent; border: none;
-            color: white; padding: 10px 10px 10px 40px; font-size: 14px;
-            outline: none;
+            width: 100%; background: transparent; border: none; color: white;
+            padding: 10px 10px 10px 40px; font-size: 14px; outline: none;
         }
         .search-input::placeholder { color: #666; }
 
@@ -124,12 +122,7 @@
         }
         .song-cover-thumb { width: 50px; height: 50px; border-radius: 6px; object-fit: cover; margin-right: 15px; }
         .song-info-list { flex: 1; min-width: 0; overflow: hidden; }
-        
-        .song-title-list { 
-            font-size: 16px; font-weight: 500; 
-            white-space: nowrap; overflow: hidden; 
-        }
-        
+        .song-title-list { font-size: 16px; font-weight: 500; white-space: nowrap; overflow: hidden; }
         .song-artist-list { font-size: 13px; color: var(--text-sub); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .song-actions { display: flex; align-items: center; }
         .fav-icon { color: #666; margin-left: 10px; }
@@ -160,7 +153,7 @@
         }
         .mini-info { flex: 1; margin: 0 15px; overflow: hidden; }
         
-        /* 跑馬燈樣式 */
+        /* 跑馬燈 */
         .scroll-text { display: inline-block; white-space: nowrap; }
         .scroll-text.scrolling { padding-left: 100%; animation: marquee 12s linear infinite; }
         @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-100%); } }
@@ -200,9 +193,7 @@
             transition: transform 0.2s linear; 
             z-index: 10; pointer-events: none; 
         }
-        
         .tone-arm.playing { transform: rotate(28deg); }
-        
         .tone-arm::before {
             content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
             width: 24px; height: 24px; border-radius: 50%;
@@ -229,10 +220,19 @@
             content: ''; position: absolute; width: 95%; height: 95%; border-radius: 50%;
             background: repeating-radial-gradient(#111 0, #111 2px, #222 3px, #222 4px); z-index: 1;
         }
+        
         .album-art {
             width: 180px; height: 180px; border-radius: 50%; background-size: cover; background-position: center;
             z-index: 2; position: relative; box-shadow: 0 0 0 5px #111;
         }
+
+        /* CD 中間的挖空效果 */
+        .album-art::after {
+            content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 30px; height: 30px; background-color: var(--bg-color);
+            border-radius: 50%; box-shadow: inset 0 2px 5px rgba(0,0,0,0.8); z-index: 10;
+        }
+
         @keyframes rotate { 100% { transform: rotate(360deg); } }
 
         .player-controls-area { 
@@ -270,7 +270,6 @@
 
         /* 音量浮動視窗 */
         .volume-container { position: relative; display: flex; justify-content: center; align-items: center; }
-        
         .volume-popup {
             position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
             width: 140px; height: 50px; background: rgba(34, 34, 34, 0.9); 
@@ -281,15 +280,9 @@
         }
         .volume-popup.show { opacity: 1; bottom: 60px; pointer-events: auto; }
         
-        /* 橫向滑桿 */
         .horizontal-slider-popup { 
-            width: 100px !important; 
-            height: 4px; 
-            background: rgba(255,255,255,0.3); 
-            border-radius: 2px; 
-            -webkit-appearance: none; 
-            outline: none; 
-            margin: 0; 
+            width: 100px !important; height: 4px; background: rgba(255,255,255,0.3); 
+            border-radius: 2px; -webkit-appearance: none; outline: none; margin: 0; 
         }
         .horizontal-slider-popup::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; background: #fff; border-radius: 50%; cursor: pointer; box-shadow: 0 0 5px rgba(0,0,0,0.5); }
 
@@ -305,29 +298,14 @@
         .eq-sliders { display: flex; justify-content: space-between; height: 150px; }
         .eq-band { display: flex; flex-direction: column; align-items: center; width: 18%; }
         
-        /* ★★★ 修改：修復 EQ 直立滑桿樣式，加上 !important ★★★ */
+        /* EQ 直立滑桿 */
         .eq-range { 
-            -webkit-appearance: none; 
-            appearance: none;
-            writing-mode: vertical-lr; /* 直立模式 */
-            direction: rtl; /* 最大值在上方 */
-            
-            width: 8px !important; 
-            height: 100% !important; 
-            
-            background: #444; 
-            border-radius: 4px;
-            cursor: pointer;
-            margin: 0;
+            -webkit-appearance: none; appearance: none;
+            writing-mode: vertical-lr; direction: rtl;
+            width: 8px !important; height: 100% !important;
+            background: #444; border-radius: 4px; cursor: pointer; margin: 0;
         }
-        .eq-range::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            width: 16px;
-            height: 16px;
-            background: #fff;
-            border-radius: 50%;
-            cursor: pointer;
-        }
+        .eq-range::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; background: #fff; border-radius: 50%; cursor: pointer; }
 
         .eq-label { font-size: 10px; color: #aaa; margin-top: 10px; }
         .eq-reset { width: 100%; margin-top: 20px; padding: 10px; background: #333; color: white; border: none; border-radius: 8px; cursor: pointer; }
@@ -342,6 +320,9 @@
         <div class="spinner"></div>
         <div id="loading-text">正在讀取 GitHub 倉庫...</div>
     </div>
+
+    <canvas id="pip-canvas" width="512" height="512" class="hidden-media"></canvas>
+    <video id="pip-video" muted playsinline class="hidden-media"></video>
 
     <div id="app-container">
         
@@ -407,9 +388,7 @@
             <div id="player-bg"></div>
             <div class="player-nav">
                 <button class="icon-btn" onclick="closePlayer()"><span class="material-icons-round">keyboard_arrow_down</span></button>
-                
                 <span id="header-clock">--:--</span>
-                
                 <div class="placeholder-btn"></div>
             </div>
             <div class="vinyl-area">
@@ -440,6 +419,11 @@
                             <span class="material-icons-round">volume_up</span>
                         </button>
                     </div>
+                    
+                    <button class="ctrl-btn" onclick="togglePiP()">
+                        <span class="material-icons-round">picture_in_picture_alt</span>
+                    </button>
+
                     <button class="ctrl-btn" id="btn-timer" onclick="openTimer()">
                         <span class="material-icons-round">timer</span>
                     </button>
@@ -500,6 +484,9 @@
         const REPO = 'music-player';
 
         const audio = document.getElementById('audio-element');
+        const pipCanvas = document.getElementById('pip-canvas'); 
+        const pipVideo = document.getElementById('pip-video');   
+        
         let allSongs = [];
         let currentPlaylist = [];
         let currentIndex = 0;
@@ -512,6 +499,15 @@
         let rafId = null;
         let searchTerm = "";
 
+        // PiP 動畫相關
+        let pipImage = null; 
+        let pipAngle = 0;    
+        let pipIntervalId = null; 
+
+        // Canvas 跑馬燈相關變數
+        let pipTitleScroll = 0;
+        let pipArtistScroll = 0;
+
         const songListContainer = document.getElementById('song-list-container');
         const vinylRecord = document.getElementById('vinyl-record');
         const toneArm = document.getElementById('tone-arm');
@@ -523,6 +519,9 @@
         let timerInterval; let timerTargetTime = null;
         
         window.onload = async () => {
+            // 確保 PiP 畫布有預設內容
+            updatePiP({title: "歡迎使用", artist: "請播放歌曲", cover: ""});
+            
             startClock(); 
             await fetchFiles();
             switchTab('all');
@@ -530,12 +529,233 @@
             setTimeout(() => document.getElementById('loading-screen').style.display = 'none', 500);
 
             if ('mediaSession' in navigator) {
+                navigator.mediaSession.setActionHandler('seekto', (details) => {
+                    if (details.seekTime !== undefined) {
+                        audio.currentTime = details.seekTime;
+                        updatePositionState();
+                    }
+                });
                 navigator.mediaSession.setActionHandler('play', () => togglePlay());
                 navigator.mediaSession.setActionHandler('pause', () => togglePlay());
                 navigator.mediaSession.setActionHandler('previoustrack', () => prevSong());
                 navigator.mediaSession.setActionHandler('nexttrack', () => nextSong());
             }
+            
+            pipVideo.addEventListener('leavepictureinpicture', () => {
+                if(!pipVideo.paused) pipVideo.pause();
+                stopPiPLoop(); 
+            });
         };
+
+        function updatePositionState() {
+            if ('mediaSession' in navigator && !isNaN(audio.duration)) {
+                try {
+                    navigator.mediaSession.setPositionState({
+                        duration: audio.duration,
+                        playbackRate: audio.playbackRate,
+                        position: audio.currentTime
+                    });
+                } catch (e) {}
+            }
+        }
+
+        async function togglePiP() {
+            if (document.pictureInPictureElement) {
+                await document.exitPictureInPicture();
+            } else {
+                try {
+                    if (pipVideo.srcObject === null) {
+                        // ★★★ 使用 120 FPS 串流 ★★★
+                        pipVideo.srcObject = pipCanvas.captureStream(120);
+                    }
+                    
+                    pipVideo.muted = true;
+                    await pipVideo.play();
+
+                    if (pipVideo.readyState === 0) {
+                        pipVideo.onloadedmetadata = async () => {
+                            await pipVideo.requestPictureInPicture();
+                        };
+                    } else {
+                        await pipVideo.requestPictureInPicture();
+                    }
+                    
+                    if(!audio.paused) startPiPLoop();
+
+                } catch (err) {
+                    console.error("PiP Error:", err);
+                    alert("子母畫面啟動失敗：\n" + err.message + "\n(請確認瀏覽器支援或已授予權限)");
+                }
+            }
+        }
+
+        function updatePiP(song) {
+            // 重置捲動位置
+            pipTitleScroll = 0;
+            pipArtistScroll = 0;
+
+            pipCanvas.dataset.title = song.title || "未知歌曲";
+            pipCanvas.dataset.artist = song.artist || "未知歌手";
+
+            if (song.cover) {
+                const img = new Image();
+                img.crossOrigin = "Anonymous";
+                img.src = song.cover;
+                img.onload = () => {
+                    pipImage = img; 
+                    if (audio.paused) renderPiPFrame();
+                };
+                img.onerror = () => {
+                    pipImage = null; 
+                    if (audio.paused) renderPiPFrame();
+                };
+            } else {
+                pipImage = null;
+                if (audio.paused) renderPiPFrame();
+            }
+        }
+
+        // ★★★ 啟動 120 FPS 動畫迴圈 ★★★
+        function startPiPLoop() {
+            if (pipIntervalId) clearInterval(pipIntervalId);
+            // 每 8 毫秒更新一次 (約 125 fps)
+            pipIntervalId = setInterval(() => {
+                pipAngle += 0.5; // 旋轉速度
+                
+                // 增加捲動量
+                pipTitleScroll += 1; 
+                pipArtistScroll += 1;
+
+                renderPiPFrame(); 
+            }, 8);
+        }
+
+        function stopPiPLoop() {
+            if (pipIntervalId) clearInterval(pipIntervalId);
+        }
+
+        // ★★★ 繪製單幀 (修正重影問題) ★★★
+        function renderPiPFrame() {
+            const ctx = pipCanvas.getContext('2d');
+            const width = pipCanvas.width;
+            const height = pipCanvas.height;
+            const cx = width / 2;
+            const cy = height / 2 - 20; 
+
+            // ★★★ 關鍵修正：強制重置座標系，確保背景 100% 被清除 ★★★
+            ctx.setTransform(1, 0, 0, 1, 0, 0); 
+            ctx.fillStyle = '#121212';
+            ctx.fillRect(0, 0, width, height);
+
+            // 開始畫旋轉的部分
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(pipAngle * Math.PI / 180); 
+
+            // 黑膠底座
+            const recordRadius = 150;
+            ctx.beginPath();
+            ctx.arc(0, 0, recordRadius, 0, Math.PI * 2);
+            ctx.fillStyle = '#181818'; 
+            ctx.fill();
+
+            // 繪製溝槽
+            ctx.strokeStyle = '#282828'; 
+            ctx.lineWidth = 1;
+            for (let r = 100; r < 145; r += 3) {
+                ctx.beginPath();
+                ctx.arc(0, 0, r, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+
+            // 繪製專輯封面 (圓形裁切)
+            const labelRadius = 95; 
+            if (pipImage) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(0, 0, labelRadius, 0, Math.PI * 2); 
+                ctx.clip(); 
+
+                const size = Math.min(pipImage.width, pipImage.height);
+                const sx = (pipImage.width - size) / 2;
+                const sy = (pipImage.height - size) / 2;
+
+                ctx.drawImage(pipImage, sx, sy, size, size, -labelRadius, -labelRadius, labelRadius * 2, labelRadius * 2);
+                ctx.restore();
+            } else {
+                ctx.beginPath();
+                ctx.arc(0, 0, labelRadius, 0, Math.PI * 2); 
+                ctx.fillStyle = '#333';
+                ctx.fill();
+            }
+
+            // 繪製中心孔
+            ctx.beginPath();
+            ctx.arc(0, 0, 15, 0, Math.PI * 2); 
+            ctx.fillStyle = '#121212'; 
+            ctx.fill();
+
+            ctx.restore(); // 恢復旋轉前狀態
+
+            // 繪製跑馬燈文字
+            // 定義文字區域寬度
+            const textAreaWidth = 380; 
+            const titleY = height - 80;
+            const artistY = height - 40;
+
+            // 畫標題
+            ctx.font = 'bold 28px Arial';
+            const titleText = pipCanvas.dataset.title || "";
+            const titleWidth = ctx.measureText(titleText).width;
+            
+            ctx.fillStyle = '#ffffff';
+            if (titleWidth > textAreaWidth) {
+                // 需要捲動
+                ctx.save();
+                // 限制繪製區域 (Clipping)
+                ctx.beginPath();
+                ctx.rect((width - textAreaWidth)/2, titleY - 30, textAreaWidth, 40);
+                ctx.clip();
+                
+                // 計算位置：總路徑 = 文字寬 + 顯示框寬 + 間隔
+                const totalDist = titleWidth + textAreaWidth + 50;
+                const pos = pipTitleScroll % totalDist;
+                // 從右邊 (顯示框右緣) 出現，往左移
+                const currentX = (width + textAreaWidth) / 2 - pos;
+                
+                ctx.textAlign = 'left';
+                ctx.fillText(titleText, currentX, titleY);
+                ctx.restore();
+            } else {
+                // 置中
+                ctx.textAlign = 'center';
+                ctx.fillText(titleText, width / 2, titleY);
+            }
+            
+            // 畫歌手 (同樣邏輯)
+            ctx.font = '20px Arial';
+            const artistText = pipCanvas.dataset.artist || "";
+            const artistWidth = ctx.measureText(artistText).width;
+            
+            ctx.fillStyle = '#b3b3b3';
+            if (artistWidth > textAreaWidth) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect((width - textAreaWidth)/2, artistY - 25, textAreaWidth, 30);
+                ctx.clip();
+                
+                const totalDist = artistWidth + textAreaWidth + 50;
+                const pos = pipArtistScroll % totalDist;
+                const currentX = (width + textAreaWidth) / 2 - pos;
+                
+                ctx.textAlign = 'left';
+                ctx.fillText(artistText, currentX, artistY);
+                ctx.restore();
+            } else {
+                ctx.textAlign = 'center';
+                ctx.fillText(artistText, width / 2, artistY);
+            }
+        }
 
         function startClock() {
             function update() {
@@ -586,10 +806,7 @@
 
                         return {
                             id: index, title: title, artist: artist, filename: baseName, 
-                            
-                            // ★★★ 修復：替換 URL 中的 # 為 %23，解決 404 錯誤 ★★★
                             url: file.download_url.replace(/#/g, '%23'),
-                            
                             cover: cover,
                             isDefault: isDefault, 
                             album: "" 
@@ -798,16 +1015,11 @@
             renderList();
         }
 
-        // ★★★ 跑馬燈檢查函式 (通用版) ★★★
         function setTextAnimation(elementId, text) {
             const container = document.getElementById(elementId);
             if (!container) return;
-            
-            // 先清空內容，建立內層的 span
             container.innerHTML = `<span class="scroll-text">${text}</span>`;
             const span = container.querySelector('.scroll-text');
-            
-            // 檢查：如果內文寬度 (scrollWidth) 大於 容器寬度 (clientWidth)，就加上動畫 class
             if (span.scrollWidth > container.clientWidth) {
                 span.classList.add('scrolling');
             } else {
@@ -899,10 +1111,8 @@
                             document.getElementById('player-artist').innerText = tags.artist;
                             document.getElementById('mini-artist').innerText = tags.artist;
                             song.artist = tags.artist; 
-                            
                             if ('mediaSession' in navigator) navigator.mediaSession.metadata.artist = tags.artist;
                         }
-                        
                         if (tags.album) {
                             document.getElementById('player-album').innerText = tags.album;
                             song.album = tags.album;
@@ -940,6 +1150,9 @@
                                 navigator.mediaSession.metadata.artwork = [{ src: url, sizes: '512x512', type: format }];
                             }
                         }
+                        
+                        updatePiP(song); // 更新 PiP
+
                     }, onError: function(error) {}
                 });
             } catch (err) {}
@@ -963,13 +1176,25 @@
             } else {
                 favBtn.classList.remove('active'); favBtn.innerHTML = '<span class="material-icons-round">favorite_border</span>';
             }
+            
+            updatePiP(song); // 更新 PiP
         }
 
         function playSong() { loadSong(currentIndex, true); }
         function togglePlay() {
             if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-            if (audio.paused) { audio.play(); setPlayingState(true); } 
-            else { audio.pause(); setPlayingState(false); }
+            if (audio.paused) { 
+                audio.play(); 
+                setPlayingState(true); 
+                // ★★★ 關鍵修改：不暫停影片，只在需要時播放 ★★★
+                if (pipVideo.srcObject && pipVideo.paused) pipVideo.play();
+            } 
+            else { 
+                audio.pause(); 
+                setPlayingState(false); 
+                // ★★★ 關鍵修改：移除 pipVideo.pause()，讓它永遠在背景跑，避免打架 ★★★
+                stopPiPLoop(); // 但停止畫布更新以省電
+            }
         }
 
         function setPlayingState(isPlaying) {
@@ -978,6 +1203,7 @@
             if (isPlaying) { 
                 vinylRecord.classList.add('playing'); toneArm.classList.add('playing'); 
                 if (rafId) cancelAnimationFrame(rafId); updateProgressLoop();
+                startPiPLoop(); // 開始 PiP 旋轉
             } else { 
                 vinylRecord.classList.remove('playing'); toneArm.classList.remove('playing'); 
                 if (rafId) cancelAnimationFrame(rafId);
@@ -1041,6 +1267,7 @@
         audio.ontimeupdate = () => {
             document.getElementById('curr-time').innerText = formatTime(audio.currentTime);
             document.getElementById('total-time').innerText = formatTime(audio.duration || 0);
+            updatePositionState(); // 同步系統通知列進度
         };
         
         audio.onended = () => { if (loopMode === 2) { audio.currentTime = 0; audio.play(); } else { nextSong(true); } };
