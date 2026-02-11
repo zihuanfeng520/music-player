@@ -105,8 +105,15 @@
             display: none; box-shadow: 0 4px 15px rgba(0,0,0,0.5); z-index: 100;
         }
         .menu-options.show { display: block; }
-        .menu-item { padding: 10px 20px; color: white; cursor: pointer; font-size: 14px; }
+        .menu-item { 
+            padding: 12px 20px; color: white; cursor: pointer; font-size: 14px; 
+            display: flex; align-items: center; justify-content: space-between; 
+        }
         .menu-item:hover { background: #444; }
+        
+        .status-text { font-weight: bold; font-size: 12px; padding: 2px 6px; border-radius: 4px; }
+        .status-on { color: #000; background: var(--primary-color); }
+        .status-off { color: #aaa; background: #444; }
 
         .shuffle-header {
             padding: 10px 20px; display: flex; align-items: center; color: var(--primary-color);
@@ -189,11 +196,12 @@
             margin-left: 120px; margin-top: -160px;
             width: 40px; height: 150px;
             transform-origin: 50% 12px; 
-            transform: rotate(-35deg);
+            transform: rotate(-35deg); /* CSS 預設休息角度 */
             transition: transform 0.2s linear; 
             z-index: 10; pointer-events: none; 
         }
-        .tone-arm.playing { transform: rotate(28deg); }
+        /* 移除 .tone-arm.playing 的固定角度，改由 JS 控制 */
+        
         .tone-arm::before {
             content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
             width: 24px; height: 24px; border-radius: 50%;
@@ -332,6 +340,11 @@
                 <div class="nav-title">音樂播放器</div>
                 <button class="icon-btn" onclick="toggleMenu()"><span class="material-icons-round">more_vert</span></button>
                 <div class="menu-options" id="menu-options">
+                    <div class="menu-item" onclick="toggleDataSaver()">
+                        <span>節省流量模式</span>
+                        <span id="data-saver-status" class="status-off">OFF</span>
+                    </div>
+                    
                     <div class="menu-item" onclick="exportFavorites()">導出最愛列表</div>
                     <label class="menu-item" style="display:block">
                         導入最愛列表
@@ -499,6 +512,9 @@
         let rafId = null;
         let searchTerm = "";
 
+        // ★★★ 節省流量模式變數 ★★★
+        let isDataSaver = localStorage.getItem('dataSaver') === 'true';
+
         // PiP 動畫相關
         let pipImage = null; 
         let pipAngle = 0;    
@@ -519,6 +535,9 @@
         let timerInterval; let timerTargetTime = null;
         
         window.onload = async () => {
+            // 初始化開關狀態顯示
+            updateDataSaverUI();
+
             // 確保 PiP 畫布有預設內容
             updatePiP({title: "歡迎使用", artist: "請播放歌曲", cover: ""});
             
@@ -547,6 +566,27 @@
             });
         };
 
+        function toggleDataSaver() {
+            isDataSaver = !isDataSaver;
+            localStorage.setItem('dataSaver', isDataSaver);
+            updateDataSaverUI();
+            
+            if(confirm("切換流量模式需要重新整理頁面，是否立即重整？")) {
+                location.reload();
+            }
+        }
+
+        function updateDataSaverUI() {
+            const statusSpan = document.getElementById('data-saver-status');
+            if (isDataSaver) {
+                statusSpan.innerText = 'ON';
+                statusSpan.className = 'status-text status-on';
+            } else {
+                statusSpan.innerText = 'OFF';
+                statusSpan.className = 'status-text status-off';
+            }
+        }
+
         function updatePositionState() {
             if ('mediaSession' in navigator && !isNaN(audio.duration)) {
                 try {
@@ -565,7 +605,7 @@
             } else {
                 try {
                     if (pipVideo.srcObject === null) {
-                        // ★★★ 使用 120 FPS 串流 ★★★
+                        // ★★★ 使用 120 FPS 串流，極致流暢 ★★★
                         pipVideo.srcObject = pipCanvas.captureStream(120);
                     }
                     
@@ -590,7 +630,6 @@
         }
 
         function updatePiP(song) {
-            // 重置捲動位置
             pipTitleScroll = 0;
             pipArtistScroll = 0;
 
@@ -615,17 +654,14 @@
             }
         }
 
-        // ★★★ 啟動 120 FPS 動畫迴圈 ★★★
+        // 動畫迴圈 (120 FPS)
         function startPiPLoop() {
             if (pipIntervalId) clearInterval(pipIntervalId);
             // 每 8 毫秒更新一次 (約 125 fps)
             pipIntervalId = setInterval(() => {
-                pipAngle += 0.5; // 旋轉速度
-                
-                // 增加捲動量
+                pipAngle += 0.5; 
                 pipTitleScroll += 1; 
                 pipArtistScroll += 1;
-
                 renderPiPFrame(); 
             }, 8);
         }
@@ -634,7 +670,7 @@
             if (pipIntervalId) clearInterval(pipIntervalId);
         }
 
-        // ★★★ 繪製單幀 (修正重影問題) ★★★
+        // 繪製單幀 (含黑膠 & 跑馬燈)
         function renderPiPFrame() {
             const ctx = pipCanvas.getContext('2d');
             const width = pipCanvas.width;
@@ -642,12 +678,11 @@
             const cx = width / 2;
             const cy = height / 2 - 20; 
 
-            // ★★★ 關鍵修正：強制重置座標系，確保背景 100% 被清除 ★★★
+            // ★★★ 關鍵修正：強制重置座標系，解決文字重疊 (Ghosting) 問題 ★★★
             ctx.setTransform(1, 0, 0, 1, 0, 0); 
             ctx.fillStyle = '#121212';
             ctx.fillRect(0, 0, width, height);
 
-            // 開始畫旋轉的部分
             ctx.save();
             ctx.translate(cx, cy);
             ctx.rotate(pipAngle * Math.PI / 180); 
@@ -695,44 +730,36 @@
             ctx.fillStyle = '#121212'; 
             ctx.fill();
 
-            ctx.restore(); // 恢復旋轉前狀態
+            ctx.restore(); 
 
             // 繪製跑馬燈文字
-            // 定義文字區域寬度
             const textAreaWidth = 380; 
             const titleY = height - 80;
             const artistY = height - 40;
 
-            // 畫標題
             ctx.font = 'bold 28px Arial';
             const titleText = pipCanvas.dataset.title || "";
             const titleWidth = ctx.measureText(titleText).width;
             
             ctx.fillStyle = '#ffffff';
             if (titleWidth > textAreaWidth) {
-                // 需要捲動
                 ctx.save();
-                // 限制繪製區域 (Clipping)
                 ctx.beginPath();
                 ctx.rect((width - textAreaWidth)/2, titleY - 30, textAreaWidth, 40);
                 ctx.clip();
                 
-                // 計算位置：總路徑 = 文字寬 + 顯示框寬 + 間隔
                 const totalDist = titleWidth + textAreaWidth + 50;
                 const pos = pipTitleScroll % totalDist;
-                // 從右邊 (顯示框右緣) 出現，往左移
                 const currentX = (width + textAreaWidth) / 2 - pos;
                 
                 ctx.textAlign = 'left';
                 ctx.fillText(titleText, currentX, titleY);
                 ctx.restore();
             } else {
-                // 置中
                 ctx.textAlign = 'center';
                 ctx.fillText(titleText, width / 2, titleY);
             }
             
-            // 畫歌手 (同樣邏輯)
             ctx.font = '20px Arial';
             const artistText = pipCanvas.dataset.artist || "";
             const artistWidth = ctx.measureText(artistText).width;
@@ -785,9 +812,18 @@
             const picApi = `https://api.github.com/repos/${USER}/${REPO}/contents/picture`;
 
             try {
-                const [musicRes, picRes] = await Promise.all([fetch(musicApi), fetch(picApi)]);
-                const musicData = await musicRes.json();
-                const picData = await picRes.json();
+                let picData = [];
+                let musicData = [];
+
+                if (isDataSaver) {
+                    const musicRes = await fetch(musicApi);
+                    musicData = await musicRes.json();
+                } else {
+                    const [musicRes, picRes] = await Promise.all([fetch(musicApi), fetch(picApi)]);
+                    musicData = await musicRes.json();
+                    picData = await picRes.json();
+                }
+
                 const picMap = {};
                 picData.forEach(p => picMap[p.name.split('.')[0].toLowerCase()] = p.download_url);
                 const defaultPic = picMap['default'] || ''; 
@@ -866,8 +902,10 @@
                 let infoText = song.artist;
                 if (song.album) infoText += ` - ${song.album}`;
 
+                const imgTag = song.cover ? `<img src="${song.cover}" class="song-cover-thumb" id="list-cover-${song.id}">` : `<div class="song-cover-thumb" style="background:#333; display:flex; align-items:center; justify-content:center;"><span class="material-icons-round">music_note</span></div>`;
+
                 div.innerHTML = `
-                    <img src="${song.cover}" class="song-cover-thumb" id="list-cover-${song.id}">
+                    ${imgTag}
                     <div class="song-info-list">
                         <div class="song-title-list" id="list-title-${song.id}" style="color: ${idx === currentIndex ? 'var(--primary-color)' : 'white'}">${song.title}</div>
                         <div class="song-artist-list" id="list-info-${song.id}">${infoText}</div>
@@ -990,7 +1028,11 @@
             document.getElementById('player-album').innerText = ""; 
 
             initAudioContext();
-            readID3Tags(song);
+            
+            if (!isDataSaver) {
+                readID3Tags(song);
+            }
+            
             updateUI(song);
             
             if (isShuffle && loopMode === 0) {
@@ -1001,7 +1043,7 @@
                 navigator.mediaSession.metadata = new MediaMetadata({
                     title: song.title,
                     artist: song.artist,
-                    artwork: [{ src: song.cover, sizes: '512x512', type: 'image/jpeg' }]
+                    artwork: song.cover ? [{ src: song.cover, sizes: '512x512', type: 'image/jpeg' }] : []
                 });
             }
 
@@ -1163,11 +1205,19 @@
             setTextAnimation('player-title', song.title);
             
             document.getElementById('mini-artist').innerText = song.artist;
-            document.getElementById('mini-cover').src = song.cover;
-            document.getElementById('player-artist').innerText = song.artist;
-            document.getElementById('player-cover').style.backgroundImage = `url('${song.cover}')`;
-            playerBg.style.backgroundImage = `url('${song.cover}')`; 
             
+            if(song.cover) {
+                document.getElementById('mini-cover').src = song.cover;
+                document.getElementById('player-cover').style.backgroundImage = `url('${song.cover}')`;
+                playerBg.style.backgroundImage = `url('${song.cover}')`;
+            } else {
+                document.getElementById('mini-cover').src = ''; 
+                document.getElementById('player-cover').style.backgroundImage = 'none';
+                document.getElementById('player-cover').style.backgroundColor = '#333';
+                playerBg.style.backgroundImage = 'none';
+            }
+            
+            document.getElementById('player-artist').innerText = song.artist;
             document.getElementById('player-album').innerText = song.album || "";
 
             const favBtn = document.getElementById('player-fav-btn');
@@ -1186,14 +1236,12 @@
             if (audio.paused) { 
                 audio.play(); 
                 setPlayingState(true); 
-                // ★★★ 關鍵修改：不暫停影片，只在需要時播放 ★★★
                 if (pipVideo.srcObject && pipVideo.paused) pipVideo.play();
             } 
             else { 
                 audio.pause(); 
                 setPlayingState(false); 
-                // ★★★ 關鍵修改：移除 pipVideo.pause()，讓它永遠在背景跑，避免打架 ★★★
-                stopPiPLoop(); // 但停止畫布更新以省電
+                stopPiPLoop(); 
             }
         }
 
@@ -1206,6 +1254,10 @@
                 startPiPLoop(); // 開始 PiP 旋轉
             } else { 
                 vinylRecord.classList.remove('playing'); toneArm.classList.remove('playing'); 
+                
+                // ★★★ 暫停時，清除 transform 讓它彈回 CSS 設定的 -35deg ★★★
+                document.getElementById('tone-arm').style.transform = '';
+                
                 if (rafId) cancelAnimationFrame(rafId);
             }
         }
