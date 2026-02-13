@@ -330,7 +330,8 @@
     </div>
 
     <canvas id="pip-canvas" width="512" height="512" class="hidden-media"></canvas>
-    <video id="pip-video" muted playsinline class="hidden-media"></video>
+    
+    <video id="pip-video" playsinline class="hidden-media"></video>
 
     <div id="app-container">
         
@@ -498,7 +499,7 @@
 
         const audio = document.getElementById('audio-element');
         const pipCanvas = document.getElementById('pip-canvas'); 
-        const pipVideo = document.getElementById('pip-video');   
+        const pipVideo = document.getElementById('pip-video');    
         
         let allSongs = [];
         let currentPlaylist = [];
@@ -605,11 +606,13 @@
             } else {
                 try {
                     if (pipVideo.srcObject === null) {
-                        // ★★★ 使用 120 FPS 串流，極致流暢 ★★★
-                        pipVideo.srcObject = pipCanvas.captureStream(120);
+                        // ★★★ 修正：降低幀數到 30 FPS 以避免背景高耗電被殺 ★★★
+                        pipVideo.srcObject = pipCanvas.captureStream(30);
                     }
                     
-                    pipVideo.muted = true;
+                    // ★★★ 修正：必須設為 false，讓系統認為這是有聲媒體，從而保持後台活躍 ★★★
+                    pipVideo.muted = false; 
+                    
                     await pipVideo.play();
 
                     if (pipVideo.readyState === 0) {
@@ -654,16 +657,16 @@
             }
         }
 
-        // 動畫迴圈 (120 FPS)
+        // 動畫迴圈 (已降頻至 30 FPS)
         function startPiPLoop() {
             if (pipIntervalId) clearInterval(pipIntervalId);
-            // 每 8 毫秒更新一次 (約 125 fps)
+            // ★★★ 修正：每 33 毫秒更新一次 (約 30 fps)，原先 8ms (120fps) 太耗電會被殺 ★★★
             pipIntervalId = setInterval(() => {
                 pipAngle += 0.5; 
                 pipTitleScroll += 1; 
                 pipArtistScroll += 1;
                 renderPiPFrame(); 
-            }, 8);
+            }, 33);
         }
 
         function stopPiPLoop() {
@@ -678,7 +681,7 @@
             const cx = width / 2;
             const cy = height / 2 - 20; 
 
-            // ★★★ 關鍵修正：強制重置座標系，解決文字重疊 (Ghosting) 問題 ★★★
+            // 強制重置座標系，解決文字重疊 (Ghosting) 問題
             ctx.setTransform(1, 0, 0, 1, 0, 0); 
             ctx.fillStyle = '#121212';
             ctx.fillRect(0, 0, width, height);
@@ -1236,11 +1239,14 @@
             if (audio.paused) { 
                 audio.play(); 
                 setPlayingState(true); 
+                // 確保播放狀態正確同步
+                if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
                 if (pipVideo.srcObject && pipVideo.paused) pipVideo.play();
             } 
             else { 
                 audio.pause(); 
                 setPlayingState(false); 
+                if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
                 stopPiPLoop(); 
             }
         }
