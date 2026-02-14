@@ -329,7 +329,7 @@
     </div>
 
     <canvas id="pip-canvas" width="512" height="512" class="hidden-media"></canvas>
-    <video id="pip-video" playsinline class="hidden-media"></video>
+    <video id="pip-video" playsinline loop class="hidden-media"></video>
 
     <div id="app-container">
         
@@ -510,6 +510,7 @@
         let isDragging = false; 
         let rafId = null;
         let searchTerm = "";
+        let wakeLock = null; // ★★★ 喚醒鎖變數 ★★★
 
         // ★★★ 節省流量模式變數 ★★★
         let isDataSaver = localStorage.getItem('dataSaver') === 'true';
@@ -568,23 +569,45 @@
             });
 
             pipVideo.addEventListener('pause', () => {
-                if(!audio.paused) { 
-                    audio.pause(); 
-                    setPlayingState(false);
-                }
+                // 背景播放時，PiP 影片有時候會被系統暫停，但不代表音樂要停
+                // 這裡我們不強制暫停音樂，除非是用戶明確操作
             });
 
             pipVideo.addEventListener('leavepictureinpicture', () => {
                 stopPiPLoop(); 
             });
             
-            // ★★★ 自動重試機制 ★★★
-            // 如果網路錯誤導致播放停止，嘗試自動下一首
+            // 自動重試機制
             audio.addEventListener('error', (e) => {
                 console.log("Audio Error, trying next song...", e);
                 setTimeout(() => nextSong(true), 1000);
             });
+            
+            // 嘗試請求喚醒鎖
+            requestWakeLock();
         };
+        
+        // ★★★ 核心功能：請求螢幕喚醒鎖 ★★★
+        async function requestWakeLock() {
+            if ('wakeLock' in navigator) {
+                try {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    wakeLock.addEventListener('release', () => {
+                        console.log('Wake Lock released');
+                    });
+                    console.log('Wake Lock active');
+                } catch (err) {
+                    console.error(`${err.name}, ${err.message}`);
+                }
+            }
+        }
+        
+        // 當頁面重新變為可見時，重新請求喚醒鎖
+        document.addEventListener('visibilitychange', async () => {
+            if (wakeLock !== null && document.visibilityState === 'visible') {
+                await requestWakeLock();
+            }
+        });
 
         function toggleDataSaver() {
             isDataSaver = !isDataSaver;
@@ -625,15 +648,13 @@
             } else {
                 try {
                     if (pipVideo.srcObject === null) {
-                        // 使用 30 FPS 串流，省電防止被殺
                         pipVideo.srcObject = pipCanvas.captureStream(30);
                     }
                     
                     pipVideo.muted = false; 
                     
-                    // 如果音樂正在播，打開 PiP 時影片也要播
-                    if(!audio.paused) await pipVideo.play();
-                    else pipVideo.pause();
+                    // 強制播放影片
+                    await pipVideo.play();
 
                     if (pipVideo.readyState === 0) {
                         pipVideo.onloadedmetadata = async () => {
@@ -677,7 +698,6 @@
             }
         }
 
-        // 動畫迴圈 (30 FPS)
         function startPiPLoop() {
             if (pipIntervalId) clearInterval(pipIntervalId);
             pipIntervalId = setInterval(() => {
@@ -692,7 +712,6 @@
             if (pipIntervalId) clearInterval(pipIntervalId);
         }
 
-        // 繪製單幀 (含黑膠 & 跑馬燈 & 進度條)
         function renderPiPFrame() {
             const ctx = pipCanvas.getContext('2d');
             const width = pipCanvas.width;
@@ -700,7 +719,6 @@
             const cx = width / 2;
             const cy = height / 2 - 20; 
 
-            // 強制重置座標系
             ctx.setTransform(1, 0, 0, 1, 0, 0); 
             ctx.fillStyle = '#121212';
             ctx.fillRect(0, 0, width, height);
@@ -709,14 +727,12 @@
             ctx.translate(cx, cy);
             ctx.rotate(pipAngle * Math.PI / 180); 
 
-            // 黑膠底座
             const recordRadius = 150;
             ctx.beginPath();
             ctx.arc(0, 0, recordRadius, 0, Math.PI * 2);
             ctx.fillStyle = '#181818'; 
             ctx.fill();
 
-            // 繪製溝槽
             ctx.strokeStyle = '#282828'; 
             ctx.lineWidth = 1;
             for (let r = 100; r < 145; r += 3) {
@@ -725,7 +741,6 @@
                 ctx.stroke();
             }
 
-            // 繪製專輯封面 (圓形裁切)
             const labelRadius = 95; 
             if (pipImage) {
                 ctx.save();
@@ -746,7 +761,6 @@
                 ctx.fill();
             }
 
-            // 繪製中心孔
             ctx.beginPath();
             ctx.arc(0, 0, 15, 0, Math.PI * 2); 
             ctx.fillStyle = '#121212'; 
@@ -754,7 +768,6 @@
 
             ctx.restore(); 
 
-            // 繪製跑馬燈文字
             const textAreaWidth = 380; 
             const titleY = height - 80;
             const artistY = height - 40;
@@ -805,7 +818,6 @@
                 ctx.fillText(artistText, width / 2, artistY);
             }
 
-            // 畫上「視覺」進度條
             if (audio.duration) {
                 const progress = audio.currentTime / audio.duration;
                 const barHeight = 6;
@@ -1056,24 +1068,15 @@
         function loadSong(index, autoPlay = true) {
             if (index < 0 || index >= currentPlaylist.length) return;
             const song = currentPlaylist[index];
+            
+            // 核心修改：先播放，後讀取
             audio.src = song.url;
-            audio.load(); // ★★★ 修正：強制重置緩衝區 ★★★
-
+            audio.load();
             document.getElementById('player-album').innerText = ""; 
 
-            initAudioContext();
-            
-            // ★★★ 修正：如果網頁在背景（不可見），就跳過 ID3 讀取，避免網路塞車導致無法播放 ★★★
-            if (!isDataSaver && document.visibilityState === 'visible') {
-                readID3Tags(song);
-            }
-            
+            // 立即更新 UI (先用檔名，不要等)
             updateUI(song);
             
-            if (isShuffle && loopMode === 0) {
-                if(!playedHistory.includes(index)) playedHistory.push(index);
-            }
-
             if ('mediaSession' in navigator) {
                 navigator.mediaSession.metadata = new MediaMetadata({
                     title: song.title,
@@ -1082,23 +1085,41 @@
                 });
             }
 
+            initAudioContext();
+
+            // 執行播放 (優先級最高)
             if (autoPlay) {
+                requestWakeLock(); // 嘗試請求喚醒鎖
                 if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-                
-                // ★★★ 修正：更穩定的播放呼叫 ★★★
                 const playPromise = audio.play();
                 if (playPromise !== undefined) {
-                    playPromise
-                        .then(() => {
-                            setPlayingState(true);
-                        })
-                        .catch(e => {
-                            console.log("播放阻擋或失敗", e);
-                            setPlayingState(false);
-                        });
+                    playPromise.then(() => {
+                        setPlayingState(true);
+                        // 確保背景影片也在轉
+                        if(pipVideo.paused) pipVideo.play();
+                    }).catch(e => {
+                        console.log("Play failed:", e);
+                        setPlayingState(false);
+                    });
                 }
             } else {
                 setPlayingState(false);
+            }
+
+            // 最後才在背景慢慢讀取 ID3 資訊 (非同步執行，不卡播放)
+            if (!isDataSaver) {
+                readID3Tags(song).then(() => {
+                    updateUI(song);
+                    if ('mediaSession' in navigator) {
+                         navigator.mediaSession.metadata.title = song.title;
+                         navigator.mediaSession.metadata.artist = song.artist;
+                         if (song.cover) navigator.mediaSession.metadata.artwork = [{ src: song.cover, sizes: '512x512', type: 'image/jpeg' }];
+                    }
+                });
+            }
+            
+            if (isShuffle && loopMode === 0) {
+                if(!playedHistory.includes(index)) playedHistory.push(index);
             }
             renderList();
         }
@@ -1187,30 +1208,13 @@
                     onSuccess: function(tag) {
                         const tags = tag.tags;
                         if (tags.title) {
-                            setTextAnimation('player-title', tags.title);
-                            setTextAnimation('mini-title', tags.title);
-                            
-                            const listTitle = document.getElementById(`list-title-${song.id}`);
-                            if (listTitle) setTextAnimation(`list-title-${song.id}`, tags.title);
-
-                            if ('mediaSession' in navigator) navigator.mediaSession.metadata.title = tags.title;
+                            song.title = tags.title; // Update data model
                         }
                         if (tags.artist) {
-                            document.getElementById('player-artist').innerText = tags.artist;
-                            document.getElementById('mini-artist').innerText = tags.artist;
-                            song.artist = tags.artist; 
-                            if ('mediaSession' in navigator) navigator.mediaSession.metadata.artist = tags.artist;
+                            song.artist = tags.artist;
                         }
                         if (tags.album) {
-                            document.getElementById('player-album').innerText = tags.album;
                             song.album = tags.album;
-                        }
-                        
-                        const listInfo = document.getElementById(`list-info-${song.id}`);
-                        if (listInfo) {
-                            let infoText = song.artist;
-                            if (song.album) infoText += ` - ${song.album}`;
-                            listInfo.innerText = infoText;
                         }
 
                         if (song.isDefault && tags.picture) {
@@ -1224,23 +1228,8 @@
                             
                             song.cover = url;
                             song.isDefault = false;
-
-                            document.getElementById('player-cover').style.backgroundImage = `url('${url}')`;
-                            document.getElementById('mini-cover').src = url;
-                            document.getElementById('player-bg').style.backgroundImage = `url('${url}')`;
-                            
-                            const listImg = document.getElementById(`list-cover-${song.id}`);
-                            if (listImg) {
-                                listImg.src = url;
-                            }
-
-                            if ('mediaSession' in navigator) {
-                                navigator.mediaSession.metadata.artwork = [{ src: url, sizes: '512x512', type: format }];
-                            }
                         }
                         
-                        updatePiP(song); // 更新 PiP
-
                     }, onError: function(error) {}
                 });
             } catch (err) {}
@@ -1284,12 +1273,12 @@
                 setPlayingState(true); 
                 if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
                 if (pipVideo.srcObject && pipVideo.paused) pipVideo.play();
+                requestWakeLock();
             } 
             else { 
                 audio.pause(); 
                 setPlayingState(false); 
                 if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
-                if (!pipVideo.paused) pipVideo.pause(); 
                 stopPiPLoop(); 
             }
         }
