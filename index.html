@@ -489,7 +489,7 @@
 
     </div>
 
-    <audio id="audio-element" crossorigin="anonymous" preload="auto"></audio>
+    <audio id="audio-element" crossorigin="anonymous" preload="auto" autoplay></audio>
 
     <script>
         const USER = 'zihuanfeng520';
@@ -510,7 +510,7 @@
         let isDragging = false; 
         let rafId = null;
         let searchTerm = "";
-        let wakeLock = null; // ★★★ 喚醒鎖變數 ★★★
+        let wakeLock = null; 
 
         // ★★★ 節省流量模式變數 ★★★
         let isDataSaver = localStorage.getItem('dataSaver') === 'true';
@@ -560,7 +560,6 @@
                 navigator.mediaSession.setActionHandler('nexttrack', () => nextSong());
             }
             
-            // 監聽 PiP 影片的播放/暫停事件，並強制同步到 Audio
             pipVideo.addEventListener('play', () => {
                 if(audio.paused) { 
                     audio.play().catch(e => console.log("PiP Resume Sync Error:", e)); 
@@ -569,8 +568,7 @@
             });
 
             pipVideo.addEventListener('pause', () => {
-                // 背景播放時，PiP 影片有時候會被系統暫停，但不代表音樂要停
-                // 這裡我們不強制暫停音樂，除非是用戶明確操作
+                // 背景播放時，不強制暫停音樂
             });
 
             pipVideo.addEventListener('leavepictureinpicture', () => {
@@ -587,27 +585,35 @@
             requestWakeLock();
         };
         
-        // ★★★ 核心功能：請求螢幕喚醒鎖 ★★★
         async function requestWakeLock() {
             if ('wakeLock' in navigator) {
                 try {
                     wakeLock = await navigator.wakeLock.request('screen');
-                    wakeLock.addEventListener('release', () => {
-                        console.log('Wake Lock released');
-                    });
-                    console.log('Wake Lock active');
-                } catch (err) {
-                    console.error(`${err.name}, ${err.message}`);
-                }
+                    wakeLock.addEventListener('release', () => console.log('Wake Lock released'));
+                } catch (err) { console.error(`${err.name}, ${err.message}`); }
             }
         }
         
-        // 當頁面重新變為可見時，重新請求喚醒鎖
         document.addEventListener('visibilitychange', async () => {
             if (wakeLock !== null && document.visibilityState === 'visible') {
                 await requestWakeLock();
             }
         });
+
+        // ★★★ 核心：播放微弱靜音訊號，防止音訊通道被系統切斷 ★★★
+        function playSilentPulse() {
+            if(audioCtx && audioCtx.state === 'running') {
+                try {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    gain.gain.value = 0.0001; // 極低音量
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.5); // 持續 0.5 秒
+                } catch(e) {}
+            }
+        }
 
         function toggleDataSaver() {
             isDataSaver = !isDataSaver;
@@ -653,7 +659,6 @@
                     
                     pipVideo.muted = false; 
                     
-                    // 強制播放影片
                     await pipVideo.play();
 
                     if (pipVideo.readyState === 0) {
@@ -1069,12 +1074,11 @@
             if (index < 0 || index >= currentPlaylist.length) return;
             const song = currentPlaylist[index];
             
-            // 核心修改：先播放，後讀取
+            // 強制重置與載入
             audio.src = song.url;
             audio.load();
             document.getElementById('player-album').innerText = ""; 
 
-            // 立即更新 UI (先用檔名，不要等)
             updateUI(song);
             
             if ('mediaSession' in navigator) {
@@ -1087,15 +1091,17 @@
 
             initAudioContext();
 
-            // 執行播放 (優先級最高)
             if (autoPlay) {
-                requestWakeLock(); // 嘗試請求喚醒鎖
+                requestWakeLock();
                 if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+                
+                // ★★★ 播放前先打強心針 ★★★
+                playSilentPulse();
+
                 const playPromise = audio.play();
                 if (playPromise !== undefined) {
                     playPromise.then(() => {
                         setPlayingState(true);
-                        // 確保背景影片也在轉
                         if(pipVideo.paused) pipVideo.play();
                     }).catch(e => {
                         console.log("Play failed:", e);
@@ -1106,7 +1112,6 @@
                 setPlayingState(false);
             }
 
-            // 最後才在背景慢慢讀取 ID3 資訊 (非同步執行，不卡播放)
             if (!isDataSaver) {
                 readID3Tags(song).then(() => {
                     updateUI(song);
@@ -1208,7 +1213,7 @@
                     onSuccess: function(tag) {
                         const tags = tag.tags;
                         if (tags.title) {
-                            song.title = tags.title; // Update data model
+                            song.title = tags.title; 
                         }
                         if (tags.artist) {
                             song.artist = tags.artist;
@@ -1289,7 +1294,7 @@
             if (isPlaying) { 
                 vinylRecord.classList.add('playing'); toneArm.classList.add('playing'); 
                 if (rafId) cancelAnimationFrame(rafId); updateProgressLoop();
-                startPiPLoop(); // 開始 PiP 旋轉
+                startPiPLoop(); 
             } else { 
                 vinylRecord.classList.remove('playing'); toneArm.classList.remove('playing'); 
                 document.getElementById('tone-arm').style.transform = '';
@@ -1314,6 +1319,10 @@
         function nextSong(isAuto = false) {
             const len = currentPlaylist.length;
             if (len === 0) return;
+            
+            // ★★★ 在這裡也打一支強心針，確保運算期間音訊通道活著 ★★★
+            playSilentPulse();
+
             if (isAuto && loopMode === 2) { audio.currentTime = 0; audio.play(); return; }
             if (isShuffle) {
                 if (loopMode === 1 || loopMode === 2) {
@@ -1354,10 +1363,14 @@
         audio.ontimeupdate = () => {
             document.getElementById('curr-time').innerText = formatTime(audio.currentTime);
             document.getElementById('total-time').innerText = formatTime(audio.duration || 0);
-            updatePositionState(); // 同步系統通知列進度
+            updatePositionState(); 
         };
         
-        audio.onended = () => { if (loopMode === 2) { audio.currentTime = 0; audio.play(); } else { nextSong(true); } };
+        // ★★★ 這裡也打強心針，雙重保險 ★★★
+        audio.onended = () => { 
+            playSilentPulse();
+            if (loopMode === 2) { audio.currentTime = 0; audio.play(); } else { nextSong(true); } 
+        };
 
         progressBar.addEventListener('mousedown', () => { isDragging = true; });
         progressBar.addEventListener('touchstart', () => { isDragging = true; });
