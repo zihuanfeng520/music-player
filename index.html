@@ -200,7 +200,6 @@
             transition: transform 0.2s linear; 
             z-index: 10; pointer-events: none; 
         }
-        /* 移除 .tone-arm.playing 的固定角度，改由 JS 控制 */
         
         .tone-arm::before {
             content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
@@ -561,8 +560,24 @@
                 navigator.mediaSession.setActionHandler('nexttrack', () => nextSong());
             }
             
+            // ★★★ 關鍵修復：監聽 PiP 影片的播放/暫停事件，並強制同步到 Audio ★★★
+            // 這樣在子母畫面按暫停後，再按播放，音樂才會跟著動
+            pipVideo.addEventListener('play', () => {
+                if(audio.paused) { 
+                    audio.play(); 
+                    setPlayingState(true);
+                }
+            });
+
+            pipVideo.addEventListener('pause', () => {
+                if(!audio.paused) { 
+                    audio.pause(); 
+                    setPlayingState(false);
+                }
+            });
+
             pipVideo.addEventListener('leavepictureinpicture', () => {
-                if(!pipVideo.paused) pipVideo.pause();
+                // 關閉 PiP 時，只停止動畫，不一定停止音樂(看用戶操作)
                 stopPiPLoop(); 
             });
         };
@@ -606,14 +621,16 @@
             } else {
                 try {
                     if (pipVideo.srcObject === null) {
-                        // ★★★ 修正：降低幀數到 30 FPS 以避免背景高耗電被殺 ★★★
+                        // 使用 30 FPS 串流，省電防止被殺
                         pipVideo.srcObject = pipCanvas.captureStream(30);
                     }
                     
-                    // ★★★ 修正：必須設為 false，讓系統認為這是有聲媒體，從而保持後台活躍 ★★★
+                    // 必須設為 false，讓系統認為這是有聲媒體，從而保持後台活躍
                     pipVideo.muted = false; 
                     
-                    await pipVideo.play();
+                    // 如果音樂正在播，打開 PiP 時影片也要播
+                    if(!audio.paused) await pipVideo.play();
+                    else pipVideo.pause(); // 如果音樂沒播，影片先暫停
 
                     if (pipVideo.readyState === 0) {
                         pipVideo.onloadedmetadata = async () => {
@@ -657,10 +674,9 @@
             }
         }
 
-        // 動畫迴圈 (已降頻至 30 FPS)
+        // 動畫迴圈 (30 FPS)
         function startPiPLoop() {
             if (pipIntervalId) clearInterval(pipIntervalId);
-            // ★★★ 修正：每 33 毫秒更新一次 (約 30 fps)，原先 8ms (120fps) 太耗電會被殺 ★★★
             pipIntervalId = setInterval(() => {
                 pipAngle += 0.5; 
                 pipTitleScroll += 1; 
@@ -673,7 +689,7 @@
             if (pipIntervalId) clearInterval(pipIntervalId);
         }
 
-        // 繪製單幀 (含黑膠 & 跑馬燈)
+        // 繪製單幀 (含黑膠 & 跑馬燈 & 進度條)
         function renderPiPFrame() {
             const ctx = pipCanvas.getContext('2d');
             const width = pipCanvas.width;
@@ -681,7 +697,7 @@
             const cx = width / 2;
             const cy = height / 2 - 20; 
 
-            // 強制重置座標系，解決文字重疊 (Ghosting) 問題
+            // 強制重置座標系
             ctx.setTransform(1, 0, 0, 1, 0, 0); 
             ctx.fillStyle = '#121212';
             ctx.fillRect(0, 0, width, height);
@@ -784,6 +800,21 @@
             } else {
                 ctx.textAlign = 'center';
                 ctx.fillText(artistText, width / 2, artistY);
+            }
+
+            // ★★★ 畫上「視覺」進度條 (因為 PiP 視窗本身不支援拖拉互動) ★★★
+            if (audio.duration) {
+                const progress = audio.currentTime / audio.duration;
+                const barHeight = 6;
+                const barY = height - barHeight;
+                
+                // 背景條
+                ctx.fillStyle = '#333';
+                ctx.fillRect(0, barY, width, barHeight);
+                
+                // 進度條
+                ctx.fillStyle = '#ffb703'; // 使用 primary-color
+                ctx.fillRect(0, barY, width * progress, barHeight);
             }
         }
 
@@ -1239,14 +1270,16 @@
             if (audio.paused) { 
                 audio.play(); 
                 setPlayingState(true); 
-                // 確保播放狀態正確同步
+                // 同步播放狀態給 MediaSession (系統通知列)
                 if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+                // 同步給 PiP 影片
                 if (pipVideo.srcObject && pipVideo.paused) pipVideo.play();
             } 
             else { 
                 audio.pause(); 
                 setPlayingState(false); 
                 if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+                if (!pipVideo.paused) pipVideo.pause(); // 確保 PiP 也暫停
                 stopPiPLoop(); 
             }
         }
@@ -1260,10 +1293,7 @@
                 startPiPLoop(); // 開始 PiP 旋轉
             } else { 
                 vinylRecord.classList.remove('playing'); toneArm.classList.remove('playing'); 
-                
-                // ★★★ 暫停時，清除 transform 讓它彈回 CSS 設定的 -35deg ★★★
                 document.getElementById('tone-arm').style.transform = '';
-                
                 if (rafId) cancelAnimationFrame(rafId);
             }
         }
