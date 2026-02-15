@@ -67,6 +67,7 @@
         .nav-bar {
             padding: 20px; display: flex; justify-content: space-between; align-items: center;
             background: rgba(0,0,0,0.5); backdrop-filter: blur(10px);
+            z-index: 20; 
         }
         .nav-title { font-size: 20px; font-weight: 700; }
         .icon-btn { background: none; border: none; color: white; cursor: pointer; padding: 8px; }
@@ -99,10 +100,16 @@
         }
         .search-input::placeholder { color: #666; }
 
+        /* 選單與遮罩 */
+        .menu-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); z-index: 9998; display: none;
+        }
         .menu-options {
-            position: absolute; top: 60px; right: 10px;
+            position: fixed; top: 60px; right: 10px;
             background: #333; border-radius: 8px; padding: 10px;
-            display: none; box-shadow: 0 4px 15px rgba(0,0,0,0.5); z-index: 100;
+            display: none; box-shadow: 0 4px 15px rgba(0,0,0,0.8); z-index: 9999;
+            min-width: 180px;
         }
         .menu-options.show { display: block; }
         .menu-item { 
@@ -127,7 +134,17 @@
             border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer;
             position: relative;
         }
-        .song-cover-thumb { width: 50px; height: 50px; border-radius: 6px; object-fit: cover; margin-right: 15px; }
+        .song-item.active-song .song-title-list { color: var(--primary-color); }
+
+        .song-cover-thumb { width: 50px; height: 50px; border-radius: 6px; object-fit: cover; margin-right: 15px; background: #333; }
+        
+        /* 預設音符圖示容器 */
+        .default-thumb-icon {
+            width: 50px; height: 50px; border-radius: 6px; margin-right: 15px;
+            background: #333; display: flex; align-items: center; justify-content: center;
+        }
+        .default-thumb-icon span { font-size: 24px; color: #666; }
+
         .song-info-list { flex: 1; min-width: 0; overflow: hidden; }
         .song-title-list { font-size: 16px; font-weight: 500; white-space: nowrap; overflow: hidden; }
         .song-artist-list { font-size: 13px; color: var(--text-sub); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -139,7 +156,7 @@
         .context-menu {
             position: fixed; background-color: var(--menu-bg);
             border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.8);
-            width: 160px; display: none; z-index: 999; overflow: hidden;
+            width: 160px; display: none; z-index: 9999; overflow: hidden;
             animation: popIn 0.2s ease-out;
         }
         @keyframes popIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
@@ -147,7 +164,7 @@
         .context-item:last-child { border-bottom: none; }
         .context-item:hover { background-color: #444; }
         .context-item span.material-icons-round { margin-right: 10px; font-size: 18px; color: #ccc; }
-        .context-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 998; display: none; }
+        .context-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9998; display: none; }
 
         /* 迷你播放器 */
         .mini-player {
@@ -329,7 +346,22 @@
     </div>
 
     <canvas id="pip-canvas" width="512" height="512" class="hidden-media"></canvas>
-    <video id="pip-video" playsinline loop class="hidden-media"></video>
+    
+    <video id="pip-video" playsinline class="hidden-media"></video>
+
+    <div class="menu-overlay" id="menu-overlay" onclick="toggleMenu()"></div>
+    <div class="menu-options" id="menu-options">
+        <div class="menu-item" onclick="toggleDataSaver()">
+            <span>節省流量模式</span>
+            <span id="data-saver-status" class="status-off">OFF</span>
+        </div>
+        
+        <div class="menu-item" onclick="exportFavorites()">導出最愛列表</div>
+        <label class="menu-item" style="display:block">
+            導入最愛列表
+            <input type="file" id="import-file" style="display:none" onchange="importFavorites(this)">
+        </label>
+    </div>
 
     <div id="app-container">
         
@@ -338,18 +370,6 @@
                 <span class="material-icons-round" style="opacity:0">menu</span>
                 <div class="nav-title">音樂播放器</div>
                 <button class="icon-btn" onclick="toggleMenu()"><span class="material-icons-round">more_vert</span></button>
-                <div class="menu-options" id="menu-options">
-                    <div class="menu-item" onclick="toggleDataSaver()">
-                        <span>節省流量模式</span>
-                        <span id="data-saver-status" class="status-off">OFF</span>
-                    </div>
-                    
-                    <div class="menu-item" onclick="exportFavorites()">導出最愛列表</div>
-                    <label class="menu-item" style="display:block">
-                        導入最愛列表
-                        <input type="file" id="import-file" style="display:none" onchange="importFavorites(this)">
-                    </label>
-                </div>
             </div>
 
             <div class="tab-header">
@@ -372,7 +392,10 @@
             <div class="song-list" id="song-list-container"></div>
 
             <div class="mini-player" id="mini-player" onclick="openPlayer()">
-                <img src="" class="song-cover-thumb" id="mini-cover">
+                <div id="mini-cover-container">
+                    <div class="default-thumb-icon"><span class="material-icons-round">music_note</span></div>
+                </div>
+                
                 <div class="mini-info">
                     <div class="mini-title" id="mini-title">未播放</div>
                     <div class="mini-artist" id="mini-artist">請選擇歌曲</div>
@@ -489,7 +512,7 @@
 
     </div>
 
-    <audio id="audio-element" crossorigin="anonymous" preload="auto"></audio>
+    <audio id="audio-element" crossorigin="anonymous"></audio>
 
     <script>
         const USER = 'zihuanfeng520';
@@ -501,7 +524,7 @@
         
         let allSongs = [];
         let currentPlaylist = [];
-        let currentIndex = 0;
+        let currentIndex = -1; 
         let isShuffle = false;
         let loopMode = 0;
         let favorites = JSON.parse(localStorage.getItem('myFavorites')) || [];
@@ -510,15 +533,8 @@
         let isDragging = false; 
         let rafId = null;
         let searchTerm = "";
-        let wakeLock = null; 
-        let wakeLockRetryTimer = null;
-        
-        // 核心：背景持續音訊振盪器
-        let heartbeatOscillator = null;
-        let heartbeatGain = null;
-        let heartbeatIntervalId = null;
 
-        // ★★★ 節省流量模式變數 ★★★
+        // 節省流量模式變數
         let isDataSaver = localStorage.getItem('dataSaver') === 'true';
 
         // PiP 動畫相關
@@ -538,12 +554,17 @@
 
         let contextMenuTargetIndex = -1;
         let audioCtx; let sourceNode; let filters = []; const frequencies = [60, 250, 1000, 4000, 16000];
+        
+        // 背景播放心跳變數
+        let silentOscillator = null; 
+        let silentGain = null;
+        let wakeLock = null;
+
         let timerInterval; let timerTargetTime = null;
         
         window.onload = async () => {
             updateDataSaverUI();
-            
-            // 預設封面
+
             updatePiP({title: "歡迎使用", artist: "請播放歌曲", cover: ""});
             
             startClock(); 
@@ -552,7 +573,6 @@
             document.getElementById('loading-screen').style.opacity = '0';
             setTimeout(() => document.getElementById('loading-screen').style.display = 'none', 500);
 
-            // ✅ 設定 Media Session handlers
             if ('mediaSession' in navigator) {
                 navigator.mediaSession.setActionHandler('seekto', (details) => {
                     if (details.seekTime !== undefined) {
@@ -560,255 +580,90 @@
                         updatePositionState();
                     }
                 });
-                navigator.mediaSession.setActionHandler('play', () => {
-                    if (audio.paused) togglePlay();
-                });
-                navigator.mediaSession.setActionHandler('pause', () => {
-                    if (!audio.paused) togglePlay();
-                });
+                navigator.mediaSession.setActionHandler('play', () => togglePlay());
+                navigator.mediaSession.setActionHandler('pause', () => togglePlay());
                 navigator.mediaSession.setActionHandler('previoustrack', () => prevSong());
                 navigator.mediaSession.setActionHandler('nexttrack', () => nextSong());
-                
-                // ✅ 新增: 停止處理 (防止系統強制停止)
-                navigator.mediaSession.setActionHandler('stop', () => {
-                    // 不實際停止,只暫停
-                    if (!audio.paused) togglePlay();
-                });
             }
             
             pipVideo.addEventListener('play', () => {
                 if(audio.paused) { 
-                    audio.play().catch(e => console.log("PiP Resume Sync Error:", e)); 
-                    setPlayingState(true);
+                    togglePlay(); 
                 }
             });
 
             pipVideo.addEventListener('pause', () => {
-                // 不要跟隨 PiP 暫停,保持 audio 播放
+                if(!audio.paused) { 
+                    togglePlay();
+                }
             });
 
             pipVideo.addEventListener('leavepictureinpicture', () => {
-                stopPiPLoop();
+                stopPiPLoop(); 
             });
-            
-            audio.addEventListener('error', (e) => {
-                console.log("Audio Error, trying next song...", e);
-                setTimeout(() => nextSong(true), 1000);
-            });
-            
-            // ✅ 綁定 audio 事件
-            bindAudioEvents();
-            
-            // ✅ 初始請求 Wake Lock
-            requestWakeLock();
-            
-            // ✅ 啟動心跳保持機制
-            startHeartbeatKeepAlive();
-            
-            // ✅ 核心修正：監聽可見性變化，背景時關閉視覺運算 ✅
-            document.addEventListener('visibilitychange', handleVisibilityChange);
-            
-            // ✅ 監聽頁面暫停/恢復 (iOS 特有)
-            window.addEventListener('pagehide', () => {
-                console.log("Page hide event");
-                // 確保心跳持續
-                if (!audio.paused) {
-                    startContinuousHeartbeat();
-                }
-            });
-            
-            window.addEventListener('pageshow', () => {
-                console.log("Page show event");
-                // 恢復所有狀態
-                if (!audio.paused && audioCtx && audioCtx.state === 'suspended') {
-                    audioCtx.resume();
+
+            // 監聽頁面可見性，恢復 Wake Lock
+            document.addEventListener('visibilitychange', async () => {
+                if (document.visibilityState === 'visible' && !audio.paused) {
+                    await requestWakeLock();
                 }
             });
         };
-        
-        // ✅ 綁定所有 audio 事件
-        function bindAudioEvents() {
-            audio.ontimeupdate = () => {
-                document.getElementById('curr-time').innerText = formatTime(audio.currentTime);
-                document.getElementById('total-time').innerText = formatTime(audio.duration || 0);
-                updatePositionState();
-            };
+
+        // 初始化背景心跳與 Wake Lock
+        function initSilentAudio() {
+            if (!audioCtx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContext();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
             
-            audio.onended = () => {
-                if (loopMode === 2) {
-                    audio.currentTime = 0;
-                    audio.play();
-                } else {
-                    nextSong(true);
-                }
-            };
-        }
-        
-        // ✅ 核心：背景省電模式 ✅
-        async function handleVisibilityChange() {
-            if (document.hidden) {
-                // 進入背景
-                console.log("App in background");
+            if (!silentOscillator) {
+                silentOscillator = audioCtx.createOscillator();
+                silentGain = audioCtx.createGain();
                 
-                // 1. 停止高頻視覺動畫
-                stopPiPLoop();
+                silentOscillator.type = 'sine';
+                silentOscillator.frequency.value = 0.01; // 人耳聽不到
+                silentGain.gain.value = 0.001; // 極小音量
                 
-                // 2. 但保持最低限度的 PiP 更新 (如果 PiP 開啟)
-                if (document.pictureInPictureElement && !audio.paused) {
-                    startPiPSlowLoop();
-                }
-                
-                // 3. 確保心跳持續
-                startContinuousHeartbeat();
-                startHeartbeatKeepAlive();
-                
-                // 4. 確保 AudioContext 活躍
-                if (audioCtx && audioCtx.state === 'suspended') {
-                    audioCtx.resume();
-                }
-                
-                // 5. 確保 audio 元素保持播放
-                if (!audio.paused) {
-                    // 微調音量觸發系統注意 (人耳無感)
-                    const vol = audio.volume;
-                    audio.volume = vol * 0.9999;
-                    setTimeout(() => { audio.volume = vol; }, 50);
-                }
-                
-            } else {
-                // 回到前台
-                console.log("App visible");
-                
-                // 1. 恢復正常動畫
-                stopPiPLoop();
-                if(!audio.paused) startPiPLoop();
-                
-                // 2. 重新請求 Wake Lock
-                if (!audio.paused) {
-                    await requestWakeLock();
-                }
-                
-                // 3. 確保 AudioContext 恢復
-                if (audioCtx && audioCtx.state === 'suspended') {
-                    audioCtx.resume();
-                }
+                silentOscillator.connect(silentGain);
+                silentGain.connect(audioCtx.destination);
+                silentOscillator.start();
             }
         }
-        
-        // ✅ 改進 Wake Lock 管理
+
         async function requestWakeLock() {
             if ('wakeLock' in navigator) {
                 try {
-                    // 釋放舊的 Wake Lock
-                    if (wakeLock !== null) {
-                        try {
-                            await wakeLock.release();
-                        } catch(e) {}
-                    }
-                    
                     wakeLock = await navigator.wakeLock.request('screen');
-                    
                     wakeLock.addEventListener('release', () => {
                         console.log('Wake Lock released');
-                        wakeLock = null;
-                        
-                        // 如果還在播放,嘗試重新取得
                         if (!audio.paused) {
-                            scheduleWakeLockRetry();
+                            setTimeout(requestWakeLock, 1000); 
                         }
                     });
-                    
-                    console.log("Wake Lock acquired");
                 } catch (err) {
-                    console.error(`Wake Lock error: ${err.name}, ${err.message}`);
-                    
-                    // 失敗後排程重試
-                    if (!audio.paused) {
-                        scheduleWakeLockRetry();
-                    }
+                    console.log(`${err.name}, ${err.message}`);
                 }
             }
         }
 
-        function scheduleWakeLockRetry() {
-            if (wakeLockRetryTimer) clearTimeout(wakeLockRetryTimer);
-            
-            wakeLockRetryTimer = setTimeout(() => {
-                if (!audio.paused && wakeLock === null) {
-                    requestWakeLock();
-                }
-            }, 5000); // 5 秒後重試
-        }
-
-        // ✅ 啟動持續的心跳訊號 (強制音訊通道保持開啟) - 修正版
-        function startContinuousHeartbeat() {
-            if (!audioCtx) initAudioContext();
-            if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-            
-            if (heartbeatOscillator) return;
-
-            try {
-                // 創建更強的心跳信號
-                heartbeatOscillator = audioCtx.createOscillator();
-                heartbeatGain = audioCtx.createGain();
-                
-                // ✅ 提高音量到可被系統偵測但人耳聽不到的程度
-                heartbeatGain.gain.value = 0.001; // 原本 0.0001 太小
-                
-                // ✅ 使用更低的頻率 (人耳更難察覺)
-                heartbeatOscillator.frequency.value = 20; // 20Hz 人耳幾乎聽不到
-                heartbeatOscillator.type = 'sine';
-                
-                heartbeatOscillator.connect(heartbeatGain);
-                heartbeatGain.connect(audioCtx.destination);
-                heartbeatOscillator.start();
-                
-                console.log("Background heartbeat started");
-            } catch(e) {
-                console.error("Heartbeat failed:", e);
+        function releaseWakeLock() {
+            if (wakeLock !== null) {
+                wakeLock.release().then(() => {
+                    wakeLock = null;
+                });
             }
-        }
-
-        function stopHeartbeat() {
-            if (heartbeatOscillator) {
-                try {
-                    heartbeatOscillator.stop();
-                    heartbeatOscillator.disconnect();
-                    heartbeatGain.disconnect();
-                } catch(e) {}
-                heartbeatOscillator = null;
-                heartbeatGain = null;
-            }
-        }
-
-        // ✅ 定期刺激 AudioContext (每 30 秒)
-        function startHeartbeatKeepAlive() {
-            if (heartbeatIntervalId) return;
-            
-            heartbeatIntervalId = setInterval(() => {
-                if (audioCtx && audioCtx.state === 'suspended') {
-                    audioCtx.resume().then(() => {
-                        console.log("AudioContext resumed by heartbeat");
-                    });
-                }
-                
-                // 定期調整心跳增益以確保活躍
-                if (heartbeatGain) {
-                    const currentGain = heartbeatGain.gain.value;
-                    heartbeatGain.gain.value = currentGain * 0.9999;
-                    setTimeout(() => {
-                        if (heartbeatGain) heartbeatGain.gain.value = 0.001;
-                    }, 100);
-                }
-            }, 30000); // 每 30 秒
         }
 
         function toggleDataSaver() {
-            isDataSaver = !isDataSaver;
-            localStorage.setItem('dataSaver', isDataSaver);
-            updateDataSaverUI();
-            
-            if(confirm("切換流量模式需要重新整理頁面,是否立即重整?")) {
+            // 先詢問確認，若使用者按「取消」，則什麼都不做
+            if(confirm("切換流量模式需要重新整理頁面，是否立即重整？")) {
+                isDataSaver = !isDataSaver;
+                localStorage.setItem('dataSaver', isDataSaver);
+                updateDataSaverUI();
                 location.reload();
             }
         }
@@ -825,36 +680,30 @@
         }
 
         function updatePositionState() {
-            if ('mediaSession' in navigator && !isNaN(audio.duration) && audio.duration > 0) {
+            if ('mediaSession' in navigator && !isNaN(audio.duration)) {
                 try {
                     navigator.mediaSession.setPositionState({
                         duration: audio.duration,
                         playbackRate: audio.playbackRate,
-                        position: Math.min(audio.currentTime, audio.duration)
+                        position: audio.currentTime
                     });
-                } catch (e) {
-                    console.log("Failed to update position state:", e);
-                }
+                } catch (e) {}
             }
         }
 
-        // ✅ 改善 PiP 串流配置
         async function togglePiP() {
             if (document.pictureInPictureElement) {
                 await document.exitPictureInPicture();
             } else {
                 try {
-                    // ✅ 使用極低但非零的幀率
                     if (pipVideo.srcObject === null) {
-                        pipVideo.srcObject = pipCanvas.captureStream(1); // 1 FPS 而非 0
+                        pipVideo.srcObject = pipCanvas.captureStream(30);
                     }
                     
-                    pipVideo.muted = false;
+                    pipVideo.muted = false; 
                     
-                    // ✅ 確保 video 有基本內容
-                    renderPiPFrame(); // 先渲染一幀
-                    
-                    await pipVideo.play();
+                    if(!audio.paused) await pipVideo.play();
+                    else pipVideo.pause();
 
                     if (pipVideo.readyState === 0) {
                         pipVideo.onloadedmetadata = async () => {
@@ -864,13 +713,11 @@
                         await pipVideo.requestPictureInPicture();
                     }
                     
-                    // 背景下不跑高頻動畫,但保持最低限度更新
-                    if(!audio.paused && !document.hidden) startPiPLoop();
-                    else if(!audio.paused) startPiPSlowLoop(); // 新增慢速循環
+                    if(!audio.paused) startPiPLoop();
 
                 } catch (err) {
                     console.error("PiP Error:", err);
-                    alert("子母畫面啟動失敗:\n" + err.message + "\n(請確認瀏覽器支援或已授予權限)");
+                    alert("子母畫面啟動失敗：\n" + err.message + "\n(請確認瀏覽器支援或已授予權限)");
                 }
             }
         }
@@ -888,24 +735,20 @@
                 img.src = song.cover;
                 img.onload = () => {
                     pipImage = img; 
-                    if (audio.paused && !document.hidden) renderPiPFrame();
+                    if (audio.paused) renderPiPFrame();
                 };
                 img.onerror = () => {
                     pipImage = null; 
-                    if (audio.paused && !document.hidden) renderPiPFrame();
+                    if (audio.paused) renderPiPFrame();
                 };
             } else {
                 pipImage = null;
-                if (audio.paused && !document.hidden) renderPiPFrame();
+                if (audio.paused) renderPiPFrame();
             }
         }
 
-        // 動畫迴圈 (30 FPS),背景時會被 stopPiPLoop 暫停
         function startPiPLoop() {
             if (pipIntervalId) clearInterval(pipIntervalId);
-            // 如果在背景,就不啟動繪圖迴圈
-            if (document.hidden) return; 
-            
             pipIntervalId = setInterval(() => {
                 pipAngle += 0.5; 
                 pipTitleScroll += 1; 
@@ -914,24 +757,11 @@
             }, 33);
         }
 
-        // ✅ 新增: 背景慢速更新 (每 3 秒一幀)
-        function startPiPSlowLoop() {
-            if (pipIntervalId) clearInterval(pipIntervalId);
-            
-            pipIntervalId = setInterval(() => {
-                pipAngle += 5; // 較大的角度跳躍
-                renderPiPFrame();
-            }, 3000); // 3 秒一次
-        }
-
         function stopPiPLoop() {
             if (pipIntervalId) clearInterval(pipIntervalId);
         }
 
         function renderPiPFrame() {
-            // 背景模式下強制不渲染
-            if (document.hidden) return;
-
             const ctx = pipCanvas.getContext('2d');
             const width = pipCanvas.width;
             const height = pipCanvas.height;
@@ -1041,8 +871,10 @@
                 const progress = audio.currentTime / audio.duration;
                 const barHeight = 6;
                 const barY = height - barHeight;
+                
                 ctx.fillStyle = '#333';
                 ctx.fillRect(0, barY, width, barHeight);
+                
                 ctx.fillStyle = '#ffb703'; 
                 ctx.fillRect(0, barY, width * progress, barHeight);
             }
@@ -1089,7 +921,9 @@
                 }
 
                 const picMap = {};
-                picData.forEach(p => picMap[p.name.split('.')[0].toLowerCase()] = p.download_url);
+                if (picData && Array.isArray(picData)) {
+                    picData.forEach(p => picMap[p.name.split('.')[0].toLowerCase()] = p.download_url);
+                }
                 const defaultPic = picMap['default'] || ''; 
 
                 allSongs = musicData
@@ -1136,9 +970,6 @@
 
             playedHistory = [];
             renderList();
-            if (currentPlaylist.length > 0 && !audio.src) {
-                loadSong(0, false);
-            }
         }
 
         function filterSongs(val) {
@@ -1162,16 +993,21 @@
                 const isFav = favorites.includes(song.filename);
                 const div = document.createElement('div');
                 div.className = 'song-item';
+                div.id = `song-item-${idx}`; 
+                if(idx === currentIndex) div.classList.add('active-song');
                 
                 let infoText = song.artist;
                 if (song.album) infoText += ` - ${song.album}`;
 
-                const imgTag = song.cover ? `<img src="${song.cover}" class="song-cover-thumb" id="list-cover-${song.id}">` : `<div class="song-cover-thumb" style="background:#333; display:flex; align-items:center; justify-content:center;"><span class="material-icons-round">music_note</span></div>`;
+                // ★★★ 修復：為每個封面加入固定 ID (list-thumb-{id})，方便後續更新 ★★★
+                const imgTag = song.cover 
+                    ? `<img src="${song.cover}" class="song-cover-thumb" id="list-thumb-${song.id}">` 
+                    : `<div class="song-cover-thumb" id="list-thumb-${song.id}" style="background:#333; display:flex; align-items:center; justify-content:center;"><span class="material-icons-round">music_note</span></div>`;
 
                 div.innerHTML = `
                     ${imgTag}
                     <div class="song-info-list">
-                        <div class="song-title-list" id="list-title-${song.id}" style="color: ${idx === currentIndex ? 'var(--primary-color)' : 'white'}">${song.title}</div>
+                        <div class="song-title-list" id="list-title-${song.id}">${song.title}</div>
                         <div class="song-artist-list" id="list-info-${song.id}">${infoText}</div>
                     </div>
                     <div class="song-actions">
@@ -1186,11 +1022,25 @@
                 };
                 songListContainer.appendChild(div);
                 
-                setTextAnimation(`list-title-${song.id}`, song.title);
+                if (idx === currentIndex) {
+                    setTextAnimation(`list-title-${song.id}`, song.title);
+                }
             });
 
             if (displayCount === 0) {
                 songListContainer.innerHTML = `<div class="empty-tips">沒有找到符合的歌曲</div>`;
+            }
+        }
+
+        function highlightCurrentSong(index) {
+            const allItems = document.querySelectorAll('.song-item');
+            allItems.forEach(item => item.classList.remove('active-song'));
+
+            const currentItem = document.getElementById(`song-item-${index}`);
+            if (currentItem) {
+                currentItem.classList.add('active-song');
+                const song = currentPlaylist[index];
+                setTextAnimation(`list-title-${song.id}`, song.title);
             }
         }
 
@@ -1227,7 +1077,12 @@
                 favIcon.innerText = 'favorite_border'; favText.innerText = '加入最愛'; favBtn.style.color = 'white';
             }
             const rect = e.target.getBoundingClientRect();
-            menu.style.top = rect.bottom + 'px'; menu.style.right = (window.innerWidth - rect.right) + 'px'; 
+            let topPos = rect.bottom;
+            if (topPos + 200 > window.innerHeight) {
+                 topPos = rect.top - 200; 
+            }
+            menu.style.top = topPos + 'px'; 
+            menu.style.right = (window.innerWidth - rect.right) + 'px'; 
             menu.style.display = 'block'; overlay.style.display = 'block';
         }
 
@@ -1251,8 +1106,6 @@
             } else { renderList(); }
             if (currentPlaylist[currentIndex] && song.filename === currentPlaylist[currentIndex].filename) {
                 updateUI(currentPlaylist[currentIndex]);
-            } else if (currentPlaylist.length > 0 && currentTab === 'fav' && contextMenuTargetIndex === currentIndex) {
-                 if(currentPlaylist[currentIndex]) updateUI(currentPlaylist[currentIndex]);
             }
         }
 
@@ -1287,80 +1140,48 @@
         function loadSong(index, autoPlay = true) {
             if (index < 0 || index >= currentPlaylist.length) return;
             const song = currentPlaylist[index];
-            
-            // ✅ 關鍵: 先確保心跳和 AudioContext 活躍
-            startContinuousHeartbeat();
-            if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-            
             audio.src = song.url;
-            audio.load();
+            
             document.getElementById('player-album').innerText = ""; 
 
-            updateUI(song);
+            initSilentAudio();
+            initAudioContext();
             
+            if (!isDataSaver) {
+                readID3Tags(song);
+            }
+            
+            updateUI(song);
+            highlightCurrentSong(index);
+            
+            if (isShuffle && loopMode === 0) {
+                if(!playedHistory.includes(index)) playedHistory.push(index);
+            }
+
             if ('mediaSession' in navigator) {
                 navigator.mediaSession.metadata = new MediaMetadata({
                     title: song.title,
                     artist: song.artist,
-                    album: song.album || '',
-                    artwork: song.cover ? [
-                        { src: song.cover, sizes: '96x96', type: 'image/jpeg' },
-                        { src: song.cover, sizes: '128x128', type: 'image/jpeg' },
-                        { src: song.cover, sizes: '192x192', type: 'image/jpeg' },
-                        { src: song.cover, sizes: '256x256', type: 'image/jpeg' },
-                        { src: song.cover, sizes: '384x384', type: 'image/jpeg' },
-                        { src: song.cover, sizes: '512x512', type: 'image/jpeg' }
-                    ] : []
+                    artwork: song.cover ? [{ src: song.cover, sizes: '512x512', type: 'image/jpeg' }] : []
                 });
-                
-                // ✅ 設定播放狀態
-                navigator.mediaSession.playbackState = autoPlay ? 'playing' : 'paused';
             }
 
-            initAudioContext();
-
             if (autoPlay) {
-                requestWakeLock();
                 if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
                 
-                startContinuousHeartbeat();
-
                 const playPromise = audio.play();
                 if (playPromise !== undefined) {
-                    playPromise.then(() => {
-                        setPlayingState(true);
-                        if(pipVideo.paused) pipVideo.play();
-                    }).catch(e => {
-                        console.log("Play failed:", e);
-                        setPlayingState(false);
+                    playPromise.then(_ => {
+                         setPlayingState(true);
+                         requestWakeLock(); 
+                    })
+                    .catch(error => {
+                        console.log("播放被阻擋或失敗", error);
                     });
                 }
             } else {
                 setPlayingState(false);
             }
-
-            if (!isDataSaver) {
-                readID3Tags(song).then(() => {
-                    updateUI(song);
-                    if ('mediaSession' in navigator) {
-                         navigator.mediaSession.metadata.title = song.title;
-                         navigator.mediaSession.metadata.artist = song.artist;
-                         if (song.cover) navigator.mediaSession.metadata.artwork = [
-                            { src: song.cover, sizes: '96x96', type: 'image/jpeg' },
-                            { src: song.cover, sizes: '128x128', type: 'image/jpeg' },
-                            { src: song.cover, sizes: '192x192', type: 'image/jpeg' },
-                            { src: song.cover, sizes: '256x256', type: 'image/jpeg' },
-                            { src: song.cover, sizes: '384x384', type: 'image/jpeg' },
-                            { src: song.cover, sizes: '512x512', type: 'image/jpeg' }
-                         ];
-                    }
-                });
-            }
-            
-            if (isShuffle && loopMode === 0) {
-                if(!playedHistory.includes(index)) playedHistory.push(index);
-            }
-            renderList();
         }
 
         function setTextAnimation(elementId, text) {
@@ -1376,9 +1197,11 @@
         }
 
         function initAudioContext() {
-            if (audioCtx) return; 
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            audioCtx = new AudioContext();
+            if (sourceNode) return; 
+            if (!audioCtx) {
+                 const AudioContext = window.AudioContext || window.webkitAudioContext;
+                 audioCtx = new AudioContext();
+            }
             sourceNode = audioCtx.createMediaElementSource(audio);
             let prevNode = sourceNode;
             frequencies.forEach(freq => {
@@ -1414,7 +1237,7 @@
                 if (distance < 0) {
                     clearInterval(timerInterval); audio.pause(); setPlayingState(false);
                     timerTargetTime = null; document.getElementById('btn-timer').classList.remove('active');
-                    alert("定時結束,音樂暫停");
+                    alert("定時結束，音樂暫停");
                 } else { if(document.getElementById('timer-modal').style.display === 'flex') updateTimerUI(); }
             }, 1000);
         }
@@ -1447,13 +1270,30 @@
                     onSuccess: function(tag) {
                         const tags = tag.tags;
                         if (tags.title) {
-                            song.title = tags.title; 
+                            setTextAnimation('player-title', tags.title);
+                            setTextAnimation('mini-title', tags.title);
+                            
+                            const listTitle = document.getElementById(`list-title-${song.id}`);
+                            if (listTitle) setTextAnimation(`list-title-${song.id}`, tags.title);
+
+                            if ('mediaSession' in navigator) navigator.mediaSession.metadata.title = tags.title;
                         }
                         if (tags.artist) {
-                            song.artist = tags.artist;
+                            document.getElementById('player-artist').innerText = tags.artist;
+                            document.getElementById('mini-artist').innerText = tags.artist;
+                            song.artist = tags.artist; 
+                            if ('mediaSession' in navigator) navigator.mediaSession.metadata.artist = tags.artist;
                         }
                         if (tags.album) {
+                            document.getElementById('player-album').innerText = tags.album;
                             song.album = tags.album;
+                        }
+                        
+                        const listInfo = document.getElementById(`list-info-${song.id}`);
+                        if (listInfo) {
+                            let infoText = song.artist;
+                            if (song.album) infoText += ` - ${song.album}`;
+                            listInfo.innerText = infoText;
                         }
 
                         if (song.isDefault && tags.picture) {
@@ -1467,8 +1307,26 @@
                             
                             song.cover = url;
                             song.isDefault = false;
+
+                            updateUI(song); 
+
+                            // ★★★ 修復：同步更新列表上的圖片 (找到 list-thumb-{id} 並換成新圖片) ★★★
+                            const listThumb = document.getElementById(`list-thumb-${song.id}`);
+                            if (listThumb) {
+                                const newImg = document.createElement('img');
+                                newImg.src = url;
+                                newImg.className = 'song-cover-thumb';
+                                newImg.id = `list-thumb-${song.id}`; // 保持 ID 不變
+                                listThumb.replaceWith(newImg);
+                            }
+
+                            if ('mediaSession' in navigator) {
+                                navigator.mediaSession.metadata.artwork = [{ src: url, sizes: '512x512', type: format }];
+                            }
                         }
                         
+                        updatePiP(song); 
+
                     }, onError: function(error) {}
                 });
             } catch (err) {}
@@ -1480,12 +1338,18 @@
             
             document.getElementById('mini-artist').innerText = song.artist;
             
+            const miniCoverContainer = document.getElementById('mini-cover-container');
+            
             if(song.cover) {
-                document.getElementById('mini-cover').src = song.cover;
+                // 有封面：顯示 img 標籤
+                miniCoverContainer.innerHTML = `<img src="${song.cover}" class="song-cover-thumb" id="mini-cover">`;
+                
                 document.getElementById('player-cover').style.backgroundImage = `url('${song.cover}')`;
                 playerBg.style.backgroundImage = `url('${song.cover}')`;
             } else {
-                document.getElementById('mini-cover').src = ''; 
+                // 無封面：顯示音符 Icon
+                miniCoverContainer.innerHTML = `<div class="default-thumb-icon"><span class="material-icons-round">music_note</span></div>`;
+                
                 document.getElementById('player-cover').style.backgroundImage = 'none';
                 document.getElementById('player-cover').style.backgroundColor = '#333';
                 playerBg.style.backgroundImage = 'none';
@@ -1501,26 +1365,32 @@
                 favBtn.classList.remove('active'); favBtn.innerHTML = '<span class="material-icons-round">favorite_border</span>';
             }
             
-            updatePiP(song); // 更新 PiP
+            updatePiP(song);
         }
 
         function playSong() { loadSong(currentIndex, true); }
         function togglePlay() {
+            initSilentAudio(); 
             if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+            
             if (audio.paused) { 
-                audio.play().catch(e => console.log("Play failed:", e)); 
-                setPlayingState(true); 
-                if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
-                if (pipVideo.srcObject && pipVideo.paused) pipVideo.play();
-                requestWakeLock();
-                startContinuousHeartbeat(); 
+                const playPromise = audio.play();
+                if (playPromise !== undefined) {
+                    playPromise.then(_ => {
+                        setPlayingState(true); 
+                        requestWakeLock(); 
+                        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+                        if (pipVideo.srcObject && pipVideo.paused) pipVideo.play();
+                    }).catch(error => console.log("Play error", error));
+                }
             } 
             else { 
                 audio.pause(); 
                 setPlayingState(false); 
+                releaseWakeLock(); 
                 if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+                if (!pipVideo.paused) pipVideo.pause(); 
                 stopPiPLoop(); 
-                stopHeartbeat(); 
             }
         }
 
@@ -1555,10 +1425,6 @@
         function nextSong(isAuto = false) {
             const len = currentPlaylist.length;
             if (len === 0) return;
-            
-            // ✅ 確保心跳持續
-            startContinuousHeartbeat();
-
             if (isAuto && loopMode === 2) { audio.currentTime = 0; audio.play(); return; }
             if (isShuffle) {
                 if (loopMode === 1 || loopMode === 2) {
@@ -1596,6 +1462,14 @@
             playSong(); openPlayer();
         }
 
+        audio.ontimeupdate = () => {
+            document.getElementById('curr-time').innerText = formatTime(audio.currentTime);
+            document.getElementById('total-time').innerText = formatTime(audio.duration || 0);
+            updatePositionState(); 
+        };
+        
+        audio.onended = () => { if (loopMode === 2) { audio.currentTime = 0; audio.play(); } else { nextSong(true); } };
+
         progressBar.addEventListener('mousedown', () => { isDragging = true; });
         progressBar.addEventListener('touchstart', () => { isDragging = true; });
         progressBar.addEventListener('input', (e) => {
@@ -1616,12 +1490,20 @@
         }
         function openPlayer() { document.getElementById('player-view').classList.add('active'); }
         function closePlayer() { document.getElementById('player-view').classList.remove('active'); }
+        
         function toggleMenu() {
-            const menu = document.getElementById('menu-options'); menu.classList.toggle('show');
-            document.addEventListener('click', function close(e) {
-                if(!e.target.closest('.nav-bar')) { menu.classList.remove('show'); document.removeEventListener('click', close); }
-            });
+            const menu = document.getElementById('menu-options'); 
+            const overlay = document.getElementById('menu-overlay');
+            
+            if(menu.classList.contains('show')) {
+                menu.classList.remove('show');
+                overlay.style.display = 'none';
+            } else {
+                menu.classList.add('show');
+                overlay.style.display = 'block';
+            }
         }
+
         function toggleFavorite() {
             const song = currentPlaylist[currentIndex]; const idx = favorites.indexOf(song.filename);
             if (idx > -1) { favorites.splice(idx, 1); } else { favorites.push(song.filename); }
@@ -1647,7 +1529,7 @@
                     const imported = JSON.parse(e.target.result);
                     if (Array.isArray(imported)) {
                         favorites = imported; localStorage.setItem('myFavorites', JSON.stringify(favorites));
-                        alert("導入成功!"); if(currentTab === 'fav') switchTab('fav'); else renderList();
+                        alert("導入成功！"); if(currentTab === 'fav') switchTab('fav'); else renderList();
                         if(currentPlaylist[currentIndex]) updateUI(currentPlaylist[currentIndex]);
                     } else { alert("檔案格式錯誤"); }
                 } catch (err) { alert("讀取失敗"); }
