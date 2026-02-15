@@ -512,7 +512,7 @@
 
     </div>
 
-    <audio id="audio-element" crossorigin="anonymous" preload="auto"></audio>
+    <audio id="audio-element" crossorigin="anonymous"></audio>
 
     <script>
         const USER = 'zihuanfeng520';
@@ -534,17 +534,15 @@
         let rafId = null;
         let searchTerm = "";
 
-        // ★★★ 預載相關變數 ★★★
-        // queuedNextIndex: 我們"已經決定好"下一首是誰，不管是隨機還是順序，存在這裡
-        let queuedNextIndex = -1; 
-        let nextSongBlobUrl = null;
-        let preloadingController = null;
-
+        // 節省流量模式變數
         let isDataSaver = localStorage.getItem('dataSaver') === 'true';
 
+        // PiP 動畫相關
         let pipImage = null; 
         let pipAngle = 0;    
         let pipIntervalId = null; 
+
+        // Canvas 跑馬燈相關變數
         let pipTitleScroll = 0;
         let pipArtistScroll = 0;
 
@@ -557,6 +555,7 @@
         let contextMenuTargetIndex = -1;
         let audioCtx; let sourceNode; let filters = []; const frequencies = [60, 250, 1000, 4000, 16000];
         
+        // 背景播放心跳變數
         let silentOscillator = null; 
         let silentGain = null;
         let wakeLock = null;
@@ -603,6 +602,7 @@
                 stopPiPLoop(); 
             });
 
+            // 監聽頁面可見性，恢復 Wake Lock
             document.addEventListener('visibilitychange', async () => {
                 if (document.visibilityState === 'visible' && !audio.paused) {
                     await requestWakeLock();
@@ -610,6 +610,7 @@
             });
         };
 
+        // 初始化背景心跳與 Wake Lock
         function initSilentAudio() {
             if (!audioCtx) {
                 const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -618,12 +619,15 @@
             if (audioCtx.state === 'suspended') {
                 audioCtx.resume();
             }
+            
             if (!silentOscillator) {
                 silentOscillator = audioCtx.createOscillator();
                 silentGain = audioCtx.createGain();
+                
                 silentOscillator.type = 'sine';
-                silentOscillator.frequency.value = 0.01;
-                silentGain.gain.value = 0.001;
+                silentOscillator.frequency.value = 0.01; // 人耳聽不到
+                silentGain.gain.value = 0.001; // 極小音量
+                
                 silentOscillator.connect(silentGain);
                 silentGain.connect(audioCtx.destination);
                 silentOscillator.start();
@@ -635,6 +639,7 @@
                 try {
                     wakeLock = await navigator.wakeLock.request('screen');
                     wakeLock.addEventListener('release', () => {
+                        console.log('Wake Lock released');
                         if (!audio.paused) {
                             setTimeout(requestWakeLock, 1000); 
                         }
@@ -654,6 +659,7 @@
         }
 
         function toggleDataSaver() {
+            // 先詢問確認，若使用者按「取消」，則什麼都不做
             if(confirm("切換流量模式需要重新整理頁面，是否立即重整？")) {
                 isDataSaver = !isDataSaver;
                 localStorage.setItem('dataSaver', isDataSaver);
@@ -693,17 +699,24 @@
                     if (pipVideo.srcObject === null) {
                         pipVideo.srcObject = pipCanvas.captureStream(30);
                     }
+                    
                     pipVideo.muted = false; 
+                    
                     if(!audio.paused) await pipVideo.play();
                     else pipVideo.pause();
 
                     if (pipVideo.readyState === 0) {
-                        pipVideo.onloadedmetadata = async () => { await pipVideo.requestPictureInPicture(); };
+                        pipVideo.onloadedmetadata = async () => {
+                            await pipVideo.requestPictureInPicture();
+                        };
                     } else {
                         await pipVideo.requestPictureInPicture();
                     }
+                    
                     if(!audio.paused) startPiPLoop();
+
                 } catch (err) {
+                    console.error("PiP Error:", err);
                     alert("子母畫面啟動失敗：\n" + err.message + "\n(請確認瀏覽器支援或已授予權限)");
                 }
             }
@@ -712,6 +725,7 @@
         function updatePiP(song) {
             pipTitleScroll = 0;
             pipArtistScroll = 0;
+
             pipCanvas.dataset.title = song.title || "未知歌曲";
             pipCanvas.dataset.artist = song.artist || "未知歌手";
 
@@ -736,7 +750,9 @@
         function startPiPLoop() {
             if (pipIntervalId) clearInterval(pipIntervalId);
             pipIntervalId = setInterval(() => {
-                pipAngle += 0.5; pipTitleScroll += 1; pipArtistScroll += 1;
+                pipAngle += 0.5; 
+                pipTitleScroll += 1; 
+                pipArtistScroll += 1;
                 renderPiPFrame(); 
             }, 33);
         }
@@ -766,39 +782,66 @@
             ctx.fillStyle = '#181818'; 
             ctx.fill();
 
-            ctx.strokeStyle = '#282828'; ctx.lineWidth = 1;
+            ctx.strokeStyle = '#282828'; 
+            ctx.lineWidth = 1;
             for (let r = 100; r < 145; r += 3) {
-                ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(0, 0, r, 0, Math.PI * 2);
+                ctx.stroke();
             }
 
             const labelRadius = 95; 
             if (pipImage) {
-                ctx.save(); ctx.beginPath(); ctx.arc(0, 0, labelRadius, 0, Math.PI * 2); ctx.clip(); 
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(0, 0, labelRadius, 0, Math.PI * 2); 
+                ctx.clip(); 
+
                 const size = Math.min(pipImage.width, pipImage.height);
                 const sx = (pipImage.width - size) / 2;
                 const sy = (pipImage.height - size) / 2;
+
                 ctx.drawImage(pipImage, sx, sy, size, size, -labelRadius, -labelRadius, labelRadius * 2, labelRadius * 2);
                 ctx.restore();
             } else {
-                ctx.beginPath(); ctx.arc(0, 0, labelRadius, 0, Math.PI * 2); ctx.fillStyle = '#333'; ctx.fill();
+                ctx.beginPath();
+                ctx.arc(0, 0, labelRadius, 0, Math.PI * 2); 
+                ctx.fillStyle = '#333';
+                ctx.fill();
             }
-            ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI * 2); ctx.fillStyle = '#121212'; ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(0, 0, 15, 0, Math.PI * 2); 
+            ctx.fillStyle = '#121212'; 
+            ctx.fill();
+
             ctx.restore(); 
 
-            const textAreaWidth = 380; const titleY = height - 80; const artistY = height - 40;
+            const textAreaWidth = 380; 
+            const titleY = height - 80;
+            const artistY = height - 40;
+
             ctx.font = 'bold 28px Arial';
             const titleText = pipCanvas.dataset.title || "";
             const titleWidth = ctx.measureText(titleText).width;
             
             ctx.fillStyle = '#ffffff';
             if (titleWidth > textAreaWidth) {
-                ctx.save(); ctx.beginPath(); ctx.rect((width - textAreaWidth)/2, titleY - 30, textAreaWidth, 40); ctx.clip();
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect((width - textAreaWidth)/2, titleY - 30, textAreaWidth, 40);
+                ctx.clip();
+                
                 const totalDist = titleWidth + textAreaWidth + 50;
                 const pos = pipTitleScroll % totalDist;
                 const currentX = (width + textAreaWidth) / 2 - pos;
-                ctx.textAlign = 'left'; ctx.fillText(titleText, currentX, titleY); ctx.restore();
+                
+                ctx.textAlign = 'left';
+                ctx.fillText(titleText, currentX, titleY);
+                ctx.restore();
             } else {
-                ctx.textAlign = 'center'; ctx.fillText(titleText, width / 2, titleY);
+                ctx.textAlign = 'center';
+                ctx.fillText(titleText, width / 2, titleY);
             }
             
             ctx.font = '20px Arial';
@@ -807,20 +850,33 @@
             
             ctx.fillStyle = '#b3b3b3';
             if (artistWidth > textAreaWidth) {
-                ctx.save(); ctx.beginPath(); ctx.rect((width - textAreaWidth)/2, artistY - 25, textAreaWidth, 30); ctx.clip();
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect((width - textAreaWidth)/2, artistY - 25, textAreaWidth, 30);
+                ctx.clip();
+                
                 const totalDist = artistWidth + textAreaWidth + 50;
                 const pos = pipArtistScroll % totalDist;
                 const currentX = (width + textAreaWidth) / 2 - pos;
-                ctx.textAlign = 'left'; ctx.fillText(artistText, currentX, artistY); ctx.restore();
+                
+                ctx.textAlign = 'left';
+                ctx.fillText(artistText, currentX, artistY);
+                ctx.restore();
             } else {
-                ctx.textAlign = 'center'; ctx.fillText(artistText, width / 2, artistY);
+                ctx.textAlign = 'center';
+                ctx.fillText(artistText, width / 2, artistY);
             }
 
             if (audio.duration) {
                 const progress = audio.currentTime / audio.duration;
-                const barHeight = 6; const barY = height - barHeight;
-                ctx.fillStyle = '#333'; ctx.fillRect(0, barY, width, barHeight);
-                ctx.fillStyle = '#ffb703'; ctx.fillRect(0, barY, width * progress, barHeight);
+                const barHeight = 6;
+                const barY = height - barHeight;
+                
+                ctx.fillStyle = '#333';
+                ctx.fillRect(0, barY, width, barHeight);
+                
+                ctx.fillStyle = '#ffb703'; 
+                ctx.fillRect(0, barY, width * progress, barHeight);
             }
         }
 
@@ -829,14 +885,18 @@
                 const now = new Date();
                 let hours = now.getHours();
                 const minutes = String(now.getMinutes()).padStart(2, '0');
+                
                 let period = "";
                 if (hours >= 0 && hours < 6) period = "凌晨";
                 else if (hours >= 6 && hours < 12) period = "上午";
                 else if (hours === 12) period = "中午";
                 else if (hours >= 13 && hours < 18) period = "下午";
                 else period = "晚上";
-                hours = hours % 12; hours = hours ? hours : 12; 
+
+                hours = hours % 12;
+                hours = hours ? hours : 12; 
                 hours = String(hours).padStart(2, '0'); 
+
                 document.getElementById('header-clock').innerText = `${period} ${hours}:${minutes}`;
             }
             update();
@@ -873,9 +933,11 @@
                         const lowerName = baseName.toLowerCase();
                         let title = baseName;
                         let artist = "Unknown Artist";
+                        
                         const specificPic = picMap[lowerName];
                         const cover = specificPic || defaultPic;
                         const isDefault = !specificPic;
+
                         return {
                             id: index, title: title, artist: artist, filename: baseName, 
                             url: file.download_url.replace(/#/g, '%23'),
@@ -902,8 +964,10 @@
             } else {
                 currentPlaylist = allSongs.filter(song => favorites.includes(song.filename));
             }
+            
             searchTerm = "";
             document.querySelector('.search-input').value = "";
+
             playedHistory = [];
             renderList();
         }
@@ -915,21 +979,27 @@
 
         function renderList() {
             songListContainer.innerHTML = '';
+            
             let displayCount = 0;
+
             currentPlaylist.forEach((song, idx) => {
                 if (searchTerm) {
                     const text = (song.title + song.artist + (song.album || "")).toLowerCase();
                     if (!text.includes(searchTerm)) return;
                 }
+                
                 displayCount++;
+
                 const isFav = favorites.includes(song.filename);
                 const div = document.createElement('div');
                 div.className = 'song-item';
                 div.id = `song-item-${idx}`; 
                 if(idx === currentIndex) div.classList.add('active-song');
+                
                 let infoText = song.artist;
                 if (song.album) infoText += ` - ${song.album}`;
 
+                // ★★★ 修復：為每個封面加入固定 ID (list-thumb-{id})，方便後續更新 ★★★
                 const imgTag = song.cover 
                     ? `<img src="${song.cover}" class="song-cover-thumb" id="list-thumb-${song.id}">` 
                     : `<div class="song-cover-thumb" id="list-thumb-${song.id}" style="background:#333; display:flex; align-items:center; justify-content:center;"><span class="material-icons-round">music_note</span></div>`;
@@ -951,14 +1021,21 @@
                     playSong();
                 };
                 songListContainer.appendChild(div);
-                if (idx === currentIndex) setTextAnimation(`list-title-${song.id}`, song.title);
+                
+                if (idx === currentIndex) {
+                    setTextAnimation(`list-title-${song.id}`, song.title);
+                }
             });
-            if (displayCount === 0) songListContainer.innerHTML = `<div class="empty-tips">沒有找到符合的歌曲</div>`;
+
+            if (displayCount === 0) {
+                songListContainer.innerHTML = `<div class="empty-tips">沒有找到符合的歌曲</div>`;
+            }
         }
 
         function highlightCurrentSong(index) {
             const allItems = document.querySelectorAll('.song-item');
             allItems.forEach(item => item.classList.remove('active-song'));
+
             const currentItem = document.getElementById(`song-item-${index}`);
             if (currentItem) {
                 currentItem.classList.add('active-song');
@@ -993,6 +1070,7 @@
             const favIcon = document.getElementById('ctx-fav-icon');
             const favText = document.getElementById('ctx-fav-text');
             const favBtn = document.getElementById('ctx-fav-btn');
+
             if (isFav) {
                 favIcon.innerText = 'favorite'; favText.innerText = '取消最愛'; favBtn.style.color = '#ff4757';
             } else {
@@ -1000,8 +1078,11 @@
             }
             const rect = e.target.getBoundingClientRect();
             let topPos = rect.bottom;
-            if (topPos + 200 > window.innerHeight) { topPos = rect.top - 200; }
-            menu.style.top = topPos + 'px'; menu.style.right = (window.innerWidth - rect.right) + 'px'; 
+            if (topPos + 200 > window.innerHeight) {
+                 topPos = rect.top - 200; 
+            }
+            menu.style.top = topPos + 'px'; 
+            menu.style.right = (window.innerWidth - rect.right) + 'px'; 
             menu.style.display = 'block'; overlay.style.display = 'block';
         }
 
@@ -1059,35 +1140,19 @@
         function loadSong(index, autoPlay = true) {
             if (index < 0 || index >= currentPlaylist.length) return;
             const song = currentPlaylist[index];
+            audio.src = song.url;
             
-            // ★★★ 核心播放邏輯：如果有排隊好的 Blob 且符合 index，就用 Blob ★★★
-            if (index === queuedNextIndex && nextSongBlobUrl) {
-                console.log("命中快取：使用預載的 Blob 播放");
-                audio.src = nextSongBlobUrl;
-            } else {
-                console.log("無快取或手動點選：使用原始 URL");
-                audio.src = song.url;
-            }
-
-            // 清理舊的 Blob（釋放記憶體），因為我們已經開始播這首了，所以舊的預載不再需要
-            // 注意：正在播的這個 blob 不能 revoke，瀏覽器會處理。這裡清的是"變數指向"。
-            if (nextSongBlobUrl) {
-                // 如果目前播的正是預載的，保留它直到下次切歌（其實瀏覽器會在 src 變更後自動處理）
-                // 為了保險，我們只重置變數，不手動 revoke 正在播的 URL，避免某些瀏覽器 bug
-                nextSongBlobUrl = null;
-                queuedNextIndex = -1;
-            }
-
-            // 取消正在進行的預載
-            if (preloadingController) {
-                preloadingController.abort();
-                preloadingController = null;
-            }
-
             document.getElementById('player-album').innerText = ""; 
+
+            initSilentAudio();
+            initAudioContext();
+            
+            if (!isDataSaver) {
+                readID3Tags(song);
+            }
+            
             updateUI(song);
             highlightCurrentSong(index);
-            initSilentAudio(); initAudioContext();
             
             if (isShuffle && loopMode === 0) {
                 if(!playedHistory.includes(index)) playedHistory.push(index);
@@ -1103,96 +1168,19 @@
 
             if (autoPlay) {
                 if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+                
                 const playPromise = audio.play();
                 if (playPromise !== undefined) {
                     playPromise.then(_ => {
                          setPlayingState(true);
                          requestWakeLock(); 
-                         if (!isDataSaver) {
-                             setTimeout(() => { preloadNextSong(index); }, 3000); 
-                             setTimeout(() => { readID3Tags(song); }, 6000); 
-                         }
                     })
-                    .catch(error => console.log("播放失敗", error));
+                    .catch(error => {
+                        console.log("播放被阻擋或失敗", error);
+                    });
                 }
             } else {
                 setPlayingState(false);
-                if (!isDataSaver) readID3Tags(song);
-            }
-        }
-
-        // ★★★ 核心邏輯：預知下一首並下載 ★★★
-        async function preloadNextSong(currentIdx) {
-            // 1. 根據目前模式，算出「下一首是誰」
-            let targetIndex = calculateNextIndex(currentIdx);
-
-            if (targetIndex === -1 || targetIndex === currentIdx) {
-                // 如果是單曲循環，或者沒歌了，就不下載
-                return;
-            }
-
-            console.log(`決定預載: ${currentPlaylist[targetIndex].title} (Index: ${targetIndex})`);
-            
-            // 2. 鎖定目標
-            const nextSong = currentPlaylist[targetIndex];
-            
-            try {
-                preloadingController = new AbortController();
-                const response = await fetch(nextSong.url, { signal: preloadingController.signal });
-                const blob = await response.blob();
-                
-                // 3. 下載完成，存入變數
-                if (nextSongBlobUrl) URL.revokeObjectURL(nextSongBlobUrl); // 清舊的
-                nextSongBlobUrl = URL.createObjectURL(blob);
-                queuedNextIndex = targetIndex; // 這裡很重要！我們把算出來的結果存起來
-
-                console.log("預載完成，準備就緒");
-            } catch (err) {
-                console.log("預載被取消");
-            }
-        }
-
-        // 輔助函式：純粹計算下一首是誰，不執行播放
-        function calculateNextIndex(currentIdx) {
-            const len = currentPlaylist.length;
-            if (len <= 1) return -1;
-
-            if (loopMode === 2) {
-                // 單曲循環模式：其實不用預載，因為通常瀏覽器會有快取，
-                // 但為了保險，如果要預載應該是預載自己。這裡簡化不預載。
-                return -1; 
-            }
-
-            if (isShuffle) {
-                // 隨機模式：在這裡就直接決定下一個隨機號碼
-                // 邏輯跟 nextSong 保持一致
-                const unplayed = [];
-                for(let i=0; i<len; i++) {
-                    // 注意：這裡不能把 currentIdx 算進 unplayed，除非只有一首
-                    if(!playedHistory.includes(i) && i !== currentIdx) unplayed.push(i);
-                }
-
-                if (unplayed.length === 0) {
-                    // 全播完了，如果要循環播放(loopMode 1)，就重新洗牌
-                    if (loopMode === 1) {
-                         // 簡單隨機選一個非當前的
-                         let r = Math.floor(Math.random() * len);
-                         if (r === currentIdx) r = (r + 1) % len;
-                         return r;
-                    } else {
-                        return -1; // 停止播放
-                    }
-                } else {
-                    const randomIdx = Math.floor(Math.random() * unplayed.length);
-                    return unplayed[randomIdx];
-                }
-            } else {
-                // 順序模式
-                if (currentIdx >= len - 1) {
-                    return (loopMode === 1) ? 0 : -1;
-                } else {
-                    return currentIdx + 1;
-                }
             }
         }
 
@@ -1268,21 +1256,26 @@
                 const controller = new AbortController(); const signal = controller.signal;
                 const response = await fetch(song.url, { signal }); if (!response.ok) return;
                 const reader = response.body.getReader(); let chunks = []; let receivedLength = 0; 
+                
                 const LIMIT = 5 * 1024 * 1024; 
+                
                 while (true) {
                     const { done, value } = await reader.read(); if (done) break;
                     chunks.push(value); receivedLength += value.length;
                     if (receivedLength > LIMIT) { controller.abort(); break; }
                 }
                 const blob = new Blob(chunks);
+                
                 new jsmediatags.Reader(blob).setTagsToRead(["title", "artist", "album", "picture"]).read({
                     onSuccess: function(tag) {
                         const tags = tag.tags;
                         if (tags.title) {
                             setTextAnimation('player-title', tags.title);
                             setTextAnimation('mini-title', tags.title);
+                            
                             const listTitle = document.getElementById(`list-title-${song.id}`);
                             if (listTitle) setTextAnimation(`list-title-${song.id}`, tags.title);
+
                             if ('mediaSession' in navigator) navigator.mediaSession.metadata.title = tags.title;
                         }
                         if (tags.artist) {
@@ -1295,30 +1288,45 @@
                             document.getElementById('player-album').innerText = tags.album;
                             song.album = tags.album;
                         }
+                        
                         const listInfo = document.getElementById(`list-info-${song.id}`);
                         if (listInfo) {
                             let infoText = song.artist;
                             if (song.album) infoText += ` - ${song.album}`;
                             listInfo.innerText = infoText;
                         }
+
                         if (song.isDefault && tags.picture) {
-                            const data = tags.picture.data; const format = tags.picture.format;
+                            const data = tags.picture.data;
+                            const format = tags.picture.format;
                             let base64String = "";
-                            for (let i = 0; i < data.length; i++) { base64String += String.fromCharCode(data[i]); }
+                            for (let i = 0; i < data.length; i++) {
+                                base64String += String.fromCharCode(data[i]);
+                            }
                             const url = "data:" + format + ";base64," + window.btoa(base64String);
-                            song.cover = url; song.isDefault = false;
+                            
+                            song.cover = url;
+                            song.isDefault = false;
+
                             updateUI(song); 
+
+                            // ★★★ 修復：同步更新列表上的圖片 (找到 list-thumb-{id} 並換成新圖片) ★★★
                             const listThumb = document.getElementById(`list-thumb-${song.id}`);
                             if (listThumb) {
-                                const newImg = document.createElement('img'); newImg.src = url;
-                                newImg.className = 'song-cover-thumb'; newImg.id = `list-thumb-${song.id}`; 
+                                const newImg = document.createElement('img');
+                                newImg.src = url;
+                                newImg.className = 'song-cover-thumb';
+                                newImg.id = `list-thumb-${song.id}`; // 保持 ID 不變
                                 listThumb.replaceWith(newImg);
                             }
+
                             if ('mediaSession' in navigator) {
                                 navigator.mediaSession.metadata.artwork = [{ src: url, sizes: '512x512', type: format }];
                             }
                         }
+                        
                         updatePiP(song); 
+
                     }, onError: function(error) {}
                 });
             } catch (err) {}
@@ -1327,26 +1335,36 @@
         function updateUI(song) {
             setTextAnimation('mini-title', song.title);
             setTextAnimation('player-title', song.title);
+            
             document.getElementById('mini-artist').innerText = song.artist;
+            
             const miniCoverContainer = document.getElementById('mini-cover-container');
+            
             if(song.cover) {
+                // 有封面：顯示 img 標籤
                 miniCoverContainer.innerHTML = `<img src="${song.cover}" class="song-cover-thumb" id="mini-cover">`;
+                
                 document.getElementById('player-cover').style.backgroundImage = `url('${song.cover}')`;
                 playerBg.style.backgroundImage = `url('${song.cover}')`;
             } else {
+                // 無封面：顯示音符 Icon
                 miniCoverContainer.innerHTML = `<div class="default-thumb-icon"><span class="material-icons-round">music_note</span></div>`;
+                
                 document.getElementById('player-cover').style.backgroundImage = 'none';
                 document.getElementById('player-cover').style.backgroundColor = '#333';
                 playerBg.style.backgroundImage = 'none';
             }
+            
             document.getElementById('player-artist').innerText = song.artist;
             document.getElementById('player-album').innerText = song.album || "";
+
             const favBtn = document.getElementById('player-fav-btn');
             if(favorites.includes(song.filename)) {
                 favBtn.classList.add('active'); favBtn.innerHTML = '<span class="material-icons-round">favorite</span>';
             } else {
                 favBtn.classList.remove('active'); favBtn.innerHTML = '<span class="material-icons-round">favorite_border</span>';
             }
+            
             updatePiP(song);
         }
 
@@ -1359,16 +1377,20 @@
                 const playPromise = audio.play();
                 if (playPromise !== undefined) {
                     playPromise.then(_ => {
-                        setPlayingState(true); requestWakeLock(); 
+                        setPlayingState(true); 
+                        requestWakeLock(); 
                         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
                         if (pipVideo.srcObject && pipVideo.paused) pipVideo.play();
                     }).catch(error => console.log("Play error", error));
                 }
             } 
             else { 
-                audio.pause(); setPlayingState(false); releaseWakeLock(); 
+                audio.pause(); 
+                setPlayingState(false); 
+                releaseWakeLock(); 
                 if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
-                if (!pipVideo.paused) pipVideo.pause(); stopPiPLoop(); 
+                if (!pipVideo.paused) pipVideo.pause(); 
+                stopPiPLoop(); 
             }
         }
 
@@ -1391,42 +1413,40 @@
                 const percent = (audio.currentTime / audio.duration) * 100;
                 const safePercent = isNaN(percent) ? 0 : percent;
                 progressBar.value = safePercent;
+                
                 const armPercent = (audio.currentTime / audio.duration) || 0;
                 const angle = 9 + (13 * armPercent);
                 document.getElementById('tone-arm').style.transform = `rotate(${angle}deg)`;
+
                 rafId = requestAnimationFrame(updateProgressLoop);
             }
         }
 
-        // ★★★ 核心修改：使用 queue 決定下一首 ★★★
         function nextSong(isAuto = false) {
             const len = currentPlaylist.length;
             if (len === 0) return;
-            
-            // 單曲循環模式
-            if (isAuto && loopMode === 2) { 
-                audio.currentTime = 0; audio.play(); return; 
-            }
-
-            // ★★★ 關鍵：如果有排隊好的 (queuedNextIndex)，優先用它 ★★★
-            // 但僅限於自動播放 (isAuto) 或手動點下一首時我們認為符合預期
-            // 為了簡化，只要有排隊的，我們就播排隊的，這樣體驗最順
-            if (queuedNextIndex !== -1) {
-                console.log(`播放排隊歌曲 Index: ${queuedNextIndex}`);
-                currentIndex = queuedNextIndex;
-                playSong();
-                return;
-            }
-
-            // 如果沒排隊 (例如剛開始播，還沒預載完就按下一首)，則走老路徑計算
-            let nextIndex = calculateNextIndex(currentIndex);
-            
-            if (nextIndex === -1) {
-                 if (isAuto) { audio.pause(); audio.currentTime = 0; setPlayingState(false); playedHistory = []; }
-                 else { currentIndex = 0; playSong(); } // 手動到底了就回頭
+            if (isAuto && loopMode === 2) { audio.currentTime = 0; audio.play(); return; }
+            if (isShuffle) {
+                if (loopMode === 1 || loopMode === 2) {
+                    let nextIndex = Math.floor(Math.random() * len);
+                    if (len > 1 && nextIndex === currentIndex) nextIndex = (currentIndex + 1) % len;
+                    currentIndex = nextIndex; playSong();
+                } else {
+                    const unplayed = [];
+                    for(let i=0; i<len; i++) if(!playedHistory.includes(i)) unplayed.push(i);
+                    if (unplayed.length === 0) {
+                        if (isAuto) { audio.pause(); audio.currentTime = 0; setPlayingState(false); playedHistory = []; } 
+                        else { playedHistory = []; currentIndex = Math.floor(Math.random() * len); playSong(); }
+                    } else {
+                        const randomIdx = Math.floor(Math.random() * unplayed.length);
+                        currentIndex = unplayed[randomIdx]; playSong();
+                    }
+                }
             } else {
-                currentIndex = nextIndex;
-                playSong();
+                if (currentIndex >= len - 1) {
+                    if (loopMode === 1 || loopMode === 2) { currentIndex = 0; playSong(); } 
+                    else { if (isAuto) { audio.pause(); audio.currentTime = 0; setPlayingState(false); } else { currentIndex = 0; playSong(); } }
+                } else { currentIndex++; playSong(); }
             }
         }
 
@@ -1456,6 +1476,7 @@
             const time = (e.target.value / 100) * audio.duration;
             audio.currentTime = time;
             document.getElementById('curr-time').innerText = formatTime(time);
+            
             const percent = e.target.value / 100;
             const angle = 9 + (13 * percent);
             document.getElementById('tone-arm').style.transform = `rotate(${angle}deg)`;
@@ -1473,8 +1494,14 @@
         function toggleMenu() {
             const menu = document.getElementById('menu-options'); 
             const overlay = document.getElementById('menu-overlay');
-            if(menu.classList.contains('show')) { menu.classList.remove('show'); overlay.style.display = 'none'; } 
-            else { menu.classList.add('show'); overlay.style.display = 'block'; }
+            
+            if(menu.classList.contains('show')) {
+                menu.classList.remove('show');
+                overlay.style.display = 'none';
+            } else {
+                menu.classList.add('show');
+                overlay.style.display = 'block';
+            }
         }
 
         function toggleFavorite() {
@@ -1510,31 +1537,15 @@
             reader.readAsText(file);
         }
         
-        // ★★★ 隨機切換：重置預載 ★★★
         function toggleShuffle() { 
             isShuffle = !isShuffle; 
             document.getElementById('shuffle-icon').style.color = isShuffle ? 'var(--primary-color)' : 'white';
             playedHistory = [];
-            
-            // 模式改變了，之前的預載就不準了，趕快重新預載
-            if (!isDataSaver && !audio.paused) {
-                if (nextSongBlobUrl) URL.revokeObjectURL(nextSongBlobUrl);
-                queuedNextIndex = -1;
-                preloadNextSong(currentIndex);
-            }
         }
         
-        // ★★★ 循環切換：重置預載 ★★★
         function toggleRepeat() { 
             loopMode = (loopMode + 1) % 3;
             updateLoopIcon();
-
-            // 模式改變了，趕快重新預載 (例如變單曲循環，就不預載下一首了)
-            if (!isDataSaver && !audio.paused) {
-                 if (nextSongBlobUrl) URL.revokeObjectURL(nextSongBlobUrl);
-                 queuedNextIndex = -1;
-                 preloadNextSong(currentIndex);
-            }
         }
 
         function updateLoopIcon() {
