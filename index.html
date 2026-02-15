@@ -512,7 +512,7 @@
 
     </div>
 
-    <audio id="audio-element" crossorigin="anonymous"></audio>
+    <audio id="audio-element" crossorigin="anonymous" preload="auto"></audio>
 
     <script>
         const USER = 'zihuanfeng520';
@@ -560,9 +560,6 @@
         let silentGain = null;
         let wakeLock = null;
 
-        // ★★★ 新增: 用於持續保持背景播放的心跳間隔 ★★★
-        let keepAliveInterval = null;
-
         let timerInterval; let timerTargetTime = null;
         
         window.onload = async () => {
@@ -583,12 +580,8 @@
                         updatePositionState();
                     }
                 });
-                navigator.mediaSession.setActionHandler('play', () => {
-                    if(audio.paused) togglePlay();
-                });
-                navigator.mediaSession.setActionHandler('pause', () => {
-                    if(!audio.paused) togglePlay();
-                });
+                navigator.mediaSession.setActionHandler('play', () => togglePlay());
+                navigator.mediaSession.setActionHandler('pause', () => togglePlay());
                 navigator.mediaSession.setActionHandler('previoustrack', () => prevSong());
                 navigator.mediaSession.setActionHandler('nexttrack', () => nextSong());
             }
@@ -609,27 +602,13 @@
                 stopPiPLoop(); 
             });
 
-            // 監聽頁面可見性,恢復 Wake Lock
+            // 監聽頁面可見性，恢復 Wake Lock
             document.addEventListener('visibilitychange', async () => {
                 if (document.visibilityState === 'visible' && !audio.paused) {
                     await requestWakeLock();
                 }
             });
-
-            // ★★★ 新增: 監聽 audio ended 事件,確保自動切歌 ★★★
-            audio.addEventListener('ended', handleAudioEnded);
         };
-
-        // ★★★ 新增: 處理歌曲結束事件 ★★★
-        function handleAudioEnded() {
-            console.log('歌曲播放結束,準備切換下一首');
-            if (loopMode === 2) { 
-                audio.currentTime = 0; 
-                audio.play(); 
-            } else { 
-                nextSong(true); 
-            }
-        }
 
         // 初始化背景心跳與 Wake Lock
         function initSilentAudio() {
@@ -658,63 +637,30 @@
         async function requestWakeLock() {
             if ('wakeLock' in navigator) {
                 try {
-                    if (wakeLock !== null && !wakeLock.released) {
-                        return; // 已有有效的 Wake Lock
-                    }
                     wakeLock = await navigator.wakeLock.request('screen');
-                    console.log('Wake Lock 已取得');
                     wakeLock.addEventListener('release', () => {
-                        console.log('Wake Lock 已釋放');
-                        wakeLock = null;
-                        // 如果音樂還在播放,嘗試重新取得
+                        console.log('Wake Lock released');
                         if (!audio.paused) {
                             setTimeout(requestWakeLock, 1000); 
                         }
                     });
                 } catch (err) {
-                    console.log(`Wake Lock Error: ${err.name}, ${err.message}`);
+                    console.log(`${err.name}, ${err.message}`);
                 }
             }
         }
 
         function releaseWakeLock() {
-            if (wakeLock !== null && !wakeLock.released) {
+            if (wakeLock !== null) {
                 wakeLock.release().then(() => {
                     wakeLock = null;
-                    console.log('Wake Lock 主動釋放');
                 });
             }
         }
 
-        // ★★★ 新增: 保持背景播放的心跳機制 ★★★
-        function startKeepAlive() {
-            if (keepAliveInterval) return;
-            
-            keepAliveInterval = setInterval(() => {
-                if (!audio.paused) {
-                    // 定期觸發音訊上下文以保持活躍
-                    if (audioCtx && audioCtx.state === 'suspended') {
-                        audioCtx.resume();
-                    }
-                    
-                    // 嘗試維持 Wake Lock
-                    requestWakeLock();
-                    
-                    console.log('Keep-alive: 音樂播放中');
-                }
-            }, 5000); // 每 5 秒檢查一次
-        }
-
-        function stopKeepAlive() {
-            if (keepAliveInterval) {
-                clearInterval(keepAliveInterval);
-                keepAliveInterval = null;
-            }
-        }
-
         function toggleDataSaver() {
-            // 先詢問確認,若使用者按「取消」,則什麼都不做
-            if(confirm("切換流量模式需要重新整理頁面,是否立即重整?")) {
+            // 先詢問確認，若使用者按「取消」，則什麼都不做
+            if(confirm("切換流量模式需要重新整理頁面，是否立即重整？")) {
                 isDataSaver = !isDataSaver;
                 localStorage.setItem('dataSaver', isDataSaver);
                 updateDataSaverUI();
@@ -771,7 +717,7 @@
 
                 } catch (err) {
                     console.error("PiP Error:", err);
-                    alert("子母畫面啟動失敗:\n" + err.message + "\n(請確認瀏覽器支援或已授予權限)");
+                    alert("子母畫面啟動失敗：\n" + err.message + "\n(請確認瀏覽器支援或已授予權限)");
                 }
             }
         }
@@ -1053,7 +999,7 @@
                 let infoText = song.artist;
                 if (song.album) infoText += ` - ${song.album}`;
 
-                // ★★★ 修復:為每個封面加入固定 ID (list-thumb-{id}),方便後續更新 ★★★
+                // ★★★ 修復：為每個封面加入固定 ID (list-thumb-{id})，方便後續更新 ★★★
                 const imgTag = song.cover 
                     ? `<img src="${song.cover}" class="song-cover-thumb" id="list-thumb-${song.id}">` 
                     : `<div class="song-cover-thumb" id="list-thumb-${song.id}" style="background:#333; display:flex; align-items:center; justify-content:center;"><span class="material-icons-round">music_note</span></div>`;
@@ -1191,22 +1137,20 @@
             renderList();
         }
 
-        // ★★★ 優化後的 loadSong 函數:優先載入音樂,延後處理封面和ID3 ★★★
         function loadSong(index, autoPlay = true) {
             if (index < 0 || index >= currentPlaylist.length) return;
             const song = currentPlaylist[index];
-            
-            // ★ 步驟1: 立即設置音源並準備播放
             audio.src = song.url;
             
+            // 立即重置 UI，避免上一首的資訊殘留，但此時還不下載新圖片
             document.getElementById('player-album').innerText = ""; 
-
-            initSilentAudio();
-            initAudioContext();
             
-            // ★ 步驟2: 先用基本資訊更新UI (使用檔名作為標題)
+            // 先用舊的或預設的資訊更新 UI，確保鎖定畫面有東西顯示
             updateUI(song);
             highlightCurrentSong(index);
+            
+            initSilentAudio();
+            initAudioContext();
             
             if (isShuffle && loopMode === 0) {
                 if(!playedHistory.includes(index)) playedHistory.push(index);
@@ -1220,16 +1164,22 @@
                 });
             }
 
-            // ★ 步驟3: 立即播放音樂
             if (autoPlay) {
                 if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
                 
+                // ★★★ 核心修改：先播放，播放成功後再延遲讀取圖片 ★★★
                 const playPromise = audio.play();
                 if (playPromise !== undefined) {
                     playPromise.then(_ => {
                          setPlayingState(true);
-                         requestWakeLock();
-                         startKeepAlive(); // ★ 啟動心跳機制
+                         requestWakeLock(); 
+                         
+                         // 在這裡延遲讀取 ID3，確保網路頻寬優先給音訊緩衝
+                         if (!isDataSaver) {
+                             setTimeout(() => {
+                                 readID3Tags(song);
+                             }, 1500); // 延遲 1.5 秒再下載圖片
+                         }
                     })
                     .catch(error => {
                         console.log("播放被阻擋或失敗", error);
@@ -1237,13 +1187,10 @@
                 }
             } else {
                 setPlayingState(false);
-            }
-
-            // ★ 步驟4: 延後2秒再讀取ID3標籤和封面 (避免阻塞播放)
-            if (!isDataSaver) {
-                setTimeout(() => {
-                    readID3Tags(song);
-                }, 2000);
+                // 如果不自動播放，則直接讀取
+                if (!isDataSaver) {
+                     readID3Tags(song);
+                }
             }
         }
 
@@ -1300,7 +1247,7 @@
                 if (distance < 0) {
                     clearInterval(timerInterval); audio.pause(); setPlayingState(false);
                     timerTargetTime = null; document.getElementById('btn-timer').classList.remove('active');
-                    alert("定時結束,音樂暫停");
+                    alert("定時結束，音樂暫停");
                 } else { if(document.getElementById('timer-modal').style.display === 'flex') updateTimerUI(); }
             }, 1000);
         }
@@ -1373,7 +1320,7 @@
 
                             updateUI(song); 
 
-                            // ★★★ 修復:同步更新列表上的圖片 (找到 list-thumb-{id} 並換成新圖片) ★★★
+                            // ★★★ 修復：同步更新列表上的圖片 (找到 list-thumb-{id} 並換成新圖片) ★★★
                             const listThumb = document.getElementById(`list-thumb-${song.id}`);
                             if (listThumb) {
                                 const newImg = document.createElement('img');
@@ -1404,13 +1351,13 @@
             const miniCoverContainer = document.getElementById('mini-cover-container');
             
             if(song.cover) {
-                // 有封面:顯示 img 標籤
+                // 有封面：顯示 img 標籤
                 miniCoverContainer.innerHTML = `<img src="${song.cover}" class="song-cover-thumb" id="mini-cover">`;
                 
                 document.getElementById('player-cover').style.backgroundImage = `url('${song.cover}')`;
                 playerBg.style.backgroundImage = `url('${song.cover}')`;
             } else {
-                // 無封面:顯示音符 Icon
+                // 無封面：顯示音符 Icon
                 miniCoverContainer.innerHTML = `<div class="default-thumb-icon"><span class="material-icons-round">music_note</span></div>`;
                 
                 document.getElementById('player-cover').style.backgroundImage = 'none';
@@ -1442,7 +1389,6 @@
                     playPromise.then(_ => {
                         setPlayingState(true); 
                         requestWakeLock(); 
-                        startKeepAlive(); // ★ 啟動心跳
                         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
                         if (pipVideo.srcObject && pipVideo.paused) pipVideo.play();
                     }).catch(error => console.log("Play error", error));
@@ -1452,7 +1398,6 @@
                 audio.pause(); 
                 setPlayingState(false); 
                 releaseWakeLock(); 
-                stopKeepAlive(); // ★ 停止心跳
                 if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
                 if (!pipVideo.paused) pipVideo.pause(); 
                 stopPiPLoop(); 
@@ -1532,6 +1477,8 @@
             document.getElementById('total-time').innerText = formatTime(audio.duration || 0);
             updatePositionState(); 
         };
+        
+        audio.onended = () => { if (loopMode === 2) { audio.currentTime = 0; audio.play(); } else { nextSong(true); } };
 
         progressBar.addEventListener('mousedown', () => { isDragging = true; });
         progressBar.addEventListener('touchstart', () => { isDragging = true; });
@@ -1592,7 +1539,7 @@
                     const imported = JSON.parse(e.target.result);
                     if (Array.isArray(imported)) {
                         favorites = imported; localStorage.setItem('myFavorites', JSON.stringify(favorites));
-                        alert("導入成功!"); if(currentTab === 'fav') switchTab('fav'); else renderList();
+                        alert("導入成功！"); if(currentTab === 'fav') switchTab('fav'); else renderList();
                         if(currentPlaylist[currentIndex]) updateUI(currentPlaylist[currentIndex]);
                     } else { alert("檔案格式錯誤"); }
                 } catch (err) { alert("讀取失敗"); }
