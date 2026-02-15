@@ -489,7 +489,7 @@
 
     </div>
 
-    <audio id="audio-element" crossorigin="anonymous" preload="auto" autoplay></audio>
+    <audio id="audio-element" crossorigin="anonymous" preload="auto"></audio>
 
     <script>
         const USER = 'zihuanfeng520';
@@ -511,10 +511,12 @@
         let rafId = null;
         let searchTerm = "";
         let wakeLock = null; 
+        let wakeLockRetryTimer = null;
         
         // 核心：背景持續音訊振盪器
         let heartbeatOscillator = null;
         let heartbeatGain = null;
+        let heartbeatIntervalId = null;
 
         // ★★★ 節省流量模式變數 ★★★
         let isDataSaver = localStorage.getItem('dataSaver') === 'true';
@@ -550,6 +552,7 @@
             document.getElementById('loading-screen').style.opacity = '0';
             setTimeout(() => document.getElementById('loading-screen').style.display = 'none', 500);
 
+            // ✅ 設定 Media Session handlers
             if ('mediaSession' in navigator) {
                 navigator.mediaSession.setActionHandler('seekto', (details) => {
                     if (details.seekTime !== undefined) {
@@ -557,10 +560,20 @@
                         updatePositionState();
                     }
                 });
-                navigator.mediaSession.setActionHandler('play', () => togglePlay());
-                navigator.mediaSession.setActionHandler('pause', () => togglePlay());
+                navigator.mediaSession.setActionHandler('play', () => {
+                    if (audio.paused) togglePlay();
+                });
+                navigator.mediaSession.setActionHandler('pause', () => {
+                    if (!audio.paused) togglePlay();
+                });
                 navigator.mediaSession.setActionHandler('previoustrack', () => prevSong());
                 navigator.mediaSession.setActionHandler('nexttrack', () => nextSong());
+                
+                // ✅ 新增: 停止處理 (防止系統強制停止)
+                navigator.mediaSession.setActionHandler('stop', () => {
+                    // 不實際停止,只暫停
+                    if (!audio.paused) togglePlay();
+                });
             }
             
             pipVideo.addEventListener('play', () => {
@@ -570,10 +583,12 @@
                 }
             });
 
-            pipVideo.addEventListener('pause', () => {});
+            pipVideo.addEventListener('pause', () => {
+                // 不要跟隨 PiP 暫停,保持 audio 播放
+            });
 
             pipVideo.addEventListener('leavepictureinpicture', () => {
-                // 離開 PiP 不做事，交由 visibilitychange 處理
+                stopPiPLoop();
             });
             
             audio.addEventListener('error', (e) => {
@@ -581,36 +596,151 @@
                 setTimeout(() => nextSong(true), 1000);
             });
             
+            // ✅ 綁定 audio 事件
+            bindAudioEvents();
+            
+            // ✅ 初始請求 Wake Lock
             requestWakeLock();
             
-            // ★★★ 核心修正：監聽可見性變化，背景時關閉視覺運算 ★★★
+            // ✅ 啟動心跳保持機制
+            startHeartbeatKeepAlive();
+            
+            // ✅ 核心修正：監聽可見性變化，背景時關閉視覺運算 ✅
             document.addEventListener('visibilitychange', handleVisibilityChange);
+            
+            // ✅ 監聽頁面暫停/恢復 (iOS 特有)
+            window.addEventListener('pagehide', () => {
+                console.log("Page hide event");
+                // 確保心跳持續
+                if (!audio.paused) {
+                    startContinuousHeartbeat();
+                }
+            });
+            
+            window.addEventListener('pageshow', () => {
+                console.log("Page show event");
+                // 恢復所有狀態
+                if (!audio.paused && audioCtx && audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+            });
         };
         
-        // ★★★ 核心：背景省電模式 ★★★
+        // ✅ 綁定所有 audio 事件
+        function bindAudioEvents() {
+            audio.ontimeupdate = () => {
+                document.getElementById('curr-time').innerText = formatTime(audio.currentTime);
+                document.getElementById('total-time').innerText = formatTime(audio.duration || 0);
+                updatePositionState();
+            };
+            
+            audio.onended = () => {
+                if (loopMode === 2) {
+                    audio.currentTime = 0;
+                    audio.play();
+                } else {
+                    nextSong(true);
+                }
+            };
+        }
+        
+        // ✅ 核心：背景省電模式 ✅
         async function handleVisibilityChange() {
             if (document.hidden) {
-                // 進入背景：停止所有視覺動畫，只留聲音
+                // 進入背景
+                console.log("App in background");
+                
+                // 1. 停止高頻視覺動畫
                 stopPiPLoop();
-                console.log("App in background: Visuals stopped to save battery.");
+                
+                // 2. 但保持最低限度的 PiP 更新 (如果 PiP 開啟)
+                if (document.pictureInPictureElement && !audio.paused) {
+                    startPiPSlowLoop();
+                }
+                
+                // 3. 確保心跳持續
+                startContinuousHeartbeat();
+                startHeartbeatKeepAlive();
+                
+                // 4. 確保 AudioContext 活躍
+                if (audioCtx && audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+                
+                // 5. 確保 audio 元素保持播放
+                if (!audio.paused) {
+                    // 微調音量觸發系統注意 (人耳無感)
+                    const vol = audio.volume;
+                    audio.volume = vol * 0.9999;
+                    setTimeout(() => { audio.volume = vol; }, 50);
+                }
+                
             } else {
-                // 回到前台：恢復動畫，重新請求喚醒鎖
+                // 回到前台
+                console.log("App visible");
+                
+                // 1. 恢復正常動畫
+                stopPiPLoop();
                 if(!audio.paused) startPiPLoop();
-                if (wakeLock !== null) await requestWakeLock();
-                console.log("App visible: Visuals resumed.");
+                
+                // 2. 重新請求 Wake Lock
+                if (!audio.paused) {
+                    await requestWakeLock();
+                }
+                
+                // 3. 確保 AudioContext 恢復
+                if (audioCtx && audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
             }
         }
         
+        // ✅ 改進 Wake Lock 管理
         async function requestWakeLock() {
             if ('wakeLock' in navigator) {
                 try {
+                    // 釋放舊的 Wake Lock
+                    if (wakeLock !== null) {
+                        try {
+                            await wakeLock.release();
+                        } catch(e) {}
+                    }
+                    
                     wakeLock = await navigator.wakeLock.request('screen');
-                    wakeLock.addEventListener('release', () => console.log('Wake Lock released'));
-                } catch (err) { console.error(`${err.name}, ${err.message}`); }
+                    
+                    wakeLock.addEventListener('release', () => {
+                        console.log('Wake Lock released');
+                        wakeLock = null;
+                        
+                        // 如果還在播放,嘗試重新取得
+                        if (!audio.paused) {
+                            scheduleWakeLockRetry();
+                        }
+                    });
+                    
+                    console.log("Wake Lock acquired");
+                } catch (err) {
+                    console.error(`Wake Lock error: ${err.name}, ${err.message}`);
+                    
+                    // 失敗後排程重試
+                    if (!audio.paused) {
+                        scheduleWakeLockRetry();
+                    }
+                }
             }
         }
 
-        // 啟動持續的心跳訊號 (強制音訊通道保持開啟)
+        function scheduleWakeLockRetry() {
+            if (wakeLockRetryTimer) clearTimeout(wakeLockRetryTimer);
+            
+            wakeLockRetryTimer = setTimeout(() => {
+                if (!audio.paused && wakeLock === null) {
+                    requestWakeLock();
+                }
+            }, 5000); // 5 秒後重試
+        }
+
+        // ✅ 啟動持續的心跳訊號 (強制音訊通道保持開啟) - 修正版
         function startContinuousHeartbeat() {
             if (!audioCtx) initAudioContext();
             if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
@@ -618,12 +748,22 @@
             if (heartbeatOscillator) return;
 
             try {
+                // 創建更強的心跳信號
                 heartbeatOscillator = audioCtx.createOscillator();
                 heartbeatGain = audioCtx.createGain();
-                heartbeatGain.gain.value = 0.0001; 
+                
+                // ✅ 提高音量到可被系統偵測但人耳聽不到的程度
+                heartbeatGain.gain.value = 0.001; // 原本 0.0001 太小
+                
+                // ✅ 使用更低的頻率 (人耳更難察覺)
+                heartbeatOscillator.frequency.value = 20; // 20Hz 人耳幾乎聽不到
+                heartbeatOscillator.type = 'sine';
+                
                 heartbeatOscillator.connect(heartbeatGain);
                 heartbeatGain.connect(audioCtx.destination);
                 heartbeatOscillator.start();
+                
+                console.log("Background heartbeat started");
             } catch(e) {
                 console.error("Heartbeat failed:", e);
             }
@@ -641,12 +781,34 @@
             }
         }
 
+        // ✅ 定期刺激 AudioContext (每 30 秒)
+        function startHeartbeatKeepAlive() {
+            if (heartbeatIntervalId) return;
+            
+            heartbeatIntervalId = setInterval(() => {
+                if (audioCtx && audioCtx.state === 'suspended') {
+                    audioCtx.resume().then(() => {
+                        console.log("AudioContext resumed by heartbeat");
+                    });
+                }
+                
+                // 定期調整心跳增益以確保活躍
+                if (heartbeatGain) {
+                    const currentGain = heartbeatGain.gain.value;
+                    heartbeatGain.gain.value = currentGain * 0.9999;
+                    setTimeout(() => {
+                        if (heartbeatGain) heartbeatGain.gain.value = 0.001;
+                    }, 100);
+                }
+            }, 30000); // 每 30 秒
+        }
+
         function toggleDataSaver() {
             isDataSaver = !isDataSaver;
             localStorage.setItem('dataSaver', isDataSaver);
             updateDataSaverUI();
             
-            if(confirm("切換流量模式需要重新整理頁面，是否立即重整？")) {
+            if(confirm("切換流量模式需要重新整理頁面,是否立即重整?")) {
                 location.reload();
             }
         }
@@ -663,30 +825,35 @@
         }
 
         function updatePositionState() {
-            if ('mediaSession' in navigator && !isNaN(audio.duration)) {
+            if ('mediaSession' in navigator && !isNaN(audio.duration) && audio.duration > 0) {
                 try {
                     navigator.mediaSession.setPositionState({
                         duration: audio.duration,
                         playbackRate: audio.playbackRate,
-                        position: audio.currentTime
+                        position: Math.min(audio.currentTime, audio.duration)
                     });
-                } catch (e) {}
+                } catch (e) {
+                    console.log("Failed to update position state:", e);
+                }
             }
         }
 
+        // ✅ 改善 PiP 串流配置
         async function togglePiP() {
             if (document.pictureInPictureElement) {
                 await document.exitPictureInPicture();
             } else {
                 try {
-                    // 為了省電，這裡不從 Canvas 抓取串流，而是讓 Video 播自己的靜音迴圈
-                    // 我們只依賴 System Media Session 做鎖定畫面控制
+                    // ✅ 使用極低但非零的幀率
                     if (pipVideo.srcObject === null) {
-                         // 這裡做一個假的串流，因為如果不設 srcObject，有些瀏覽器不讓進 PiP
-                         pipVideo.srcObject = pipCanvas.captureStream(0); // 0 FPS! 極致省電
+                        pipVideo.srcObject = pipCanvas.captureStream(1); // 1 FPS 而非 0
                     }
                     
-                    pipVideo.muted = false; 
+                    pipVideo.muted = false;
+                    
+                    // ✅ 確保 video 有基本內容
+                    renderPiPFrame(); // 先渲染一幀
+                    
                     await pipVideo.play();
 
                     if (pipVideo.readyState === 0) {
@@ -697,12 +864,13 @@
                         await pipVideo.requestPictureInPicture();
                     }
                     
-                    // 背景下不跑動畫
+                    // 背景下不跑高頻動畫,但保持最低限度更新
                     if(!audio.paused && !document.hidden) startPiPLoop();
+                    else if(!audio.paused) startPiPSlowLoop(); // 新增慢速循環
 
                 } catch (err) {
                     console.error("PiP Error:", err);
-                    alert("子母畫面啟動失敗：\n" + err.message + "\n(請確認瀏覽器支援或已授予權限)");
+                    alert("子母畫面啟動失敗:\n" + err.message + "\n(請確認瀏覽器支援或已授予權限)");
                 }
             }
         }
@@ -732,10 +900,10 @@
             }
         }
 
-        // 動畫迴圈 (30 FPS)，背景時會被 stopPiPLoop 暫停
+        // 動畫迴圈 (30 FPS),背景時會被 stopPiPLoop 暫停
         function startPiPLoop() {
             if (pipIntervalId) clearInterval(pipIntervalId);
-            // 如果在背景，就不啟動繪圖迴圈
+            // 如果在背景,就不啟動繪圖迴圈
             if (document.hidden) return; 
             
             pipIntervalId = setInterval(() => {
@@ -744,6 +912,16 @@
                 pipArtistScroll += 1;
                 renderPiPFrame(); 
             }, 33);
+        }
+
+        // ✅ 新增: 背景慢速更新 (每 3 秒一幀)
+        function startPiPSlowLoop() {
+            if (pipIntervalId) clearInterval(pipIntervalId);
+            
+            pipIntervalId = setInterval(() => {
+                pipAngle += 5; // 較大的角度跳躍
+                renderPiPFrame();
+            }, 3000); // 3 秒一次
         }
 
         function stopPiPLoop() {
@@ -1110,6 +1288,10 @@
             if (index < 0 || index >= currentPlaylist.length) return;
             const song = currentPlaylist[index];
             
+            // ✅ 關鍵: 先確保心跳和 AudioContext 活躍
+            startContinuousHeartbeat();
+            if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+            
             audio.src = song.url;
             audio.load();
             document.getElementById('player-album').innerText = ""; 
@@ -1120,8 +1302,19 @@
                 navigator.mediaSession.metadata = new MediaMetadata({
                     title: song.title,
                     artist: song.artist,
-                    artwork: song.cover ? [{ src: song.cover, sizes: '512x512', type: 'image/jpeg' }] : []
+                    album: song.album || '',
+                    artwork: song.cover ? [
+                        { src: song.cover, sizes: '96x96', type: 'image/jpeg' },
+                        { src: song.cover, sizes: '128x128', type: 'image/jpeg' },
+                        { src: song.cover, sizes: '192x192', type: 'image/jpeg' },
+                        { src: song.cover, sizes: '256x256', type: 'image/jpeg' },
+                        { src: song.cover, sizes: '384x384', type: 'image/jpeg' },
+                        { src: song.cover, sizes: '512x512', type: 'image/jpeg' }
+                    ] : []
                 });
+                
+                // ✅ 設定播放狀態
+                navigator.mediaSession.playbackState = autoPlay ? 'playing' : 'paused';
             }
 
             initAudioContext();
@@ -1152,7 +1345,14 @@
                     if ('mediaSession' in navigator) {
                          navigator.mediaSession.metadata.title = song.title;
                          navigator.mediaSession.metadata.artist = song.artist;
-                         if (song.cover) navigator.mediaSession.metadata.artwork = [{ src: song.cover, sizes: '512x512', type: 'image/jpeg' }];
+                         if (song.cover) navigator.mediaSession.metadata.artwork = [
+                            { src: song.cover, sizes: '96x96', type: 'image/jpeg' },
+                            { src: song.cover, sizes: '128x128', type: 'image/jpeg' },
+                            { src: song.cover, sizes: '192x192', type: 'image/jpeg' },
+                            { src: song.cover, sizes: '256x256', type: 'image/jpeg' },
+                            { src: song.cover, sizes: '384x384', type: 'image/jpeg' },
+                            { src: song.cover, sizes: '512x512', type: 'image/jpeg' }
+                         ];
                     }
                 });
             }
@@ -1214,7 +1414,7 @@
                 if (distance < 0) {
                     clearInterval(timerInterval); audio.pause(); setPlayingState(false);
                     timerTargetTime = null; document.getElementById('btn-timer').classList.remove('active');
-                    alert("定時結束，音樂暫停");
+                    alert("定時結束,音樂暫停");
                 } else { if(document.getElementById('timer-modal').style.display === 'flex') updateTimerUI(); }
             }, 1000);
         }
@@ -1356,6 +1556,7 @@
             const len = currentPlaylist.length;
             if (len === 0) return;
             
+            // ✅ 確保心跳持續
             startContinuousHeartbeat();
 
             if (isAuto && loopMode === 2) { audio.currentTime = 0; audio.play(); return; }
@@ -1394,16 +1595,6 @@
             playedHistory = []; currentIndex = Math.floor(Math.random() * currentPlaylist.length);
             playSong(); openPlayer();
         }
-
-        audio.ontimeupdate = () => {
-            document.getElementById('curr-time').innerText = formatTime(audio.currentTime);
-            document.getElementById('total-time').innerText = formatTime(audio.duration || 0);
-            updatePositionState(); 
-        };
-        
-        audio.onended = () => { 
-            if (loopMode === 2) { audio.currentTime = 0; audio.play(); } else { nextSong(true); } 
-        };
 
         progressBar.addEventListener('mousedown', () => { isDragging = true; });
         progressBar.addEventListener('touchstart', () => { isDragging = true; });
@@ -1456,7 +1647,7 @@
                     const imported = JSON.parse(e.target.result);
                     if (Array.isArray(imported)) {
                         favorites = imported; localStorage.setItem('myFavorites', JSON.stringify(favorites));
-                        alert("導入成功！"); if(currentTab === 'fav') switchTab('fav'); else renderList();
+                        alert("導入成功!"); if(currentTab === 'fav') switchTab('fav'); else renderList();
                         if(currentPlaylist[currentIndex]) updateUI(currentPlaylist[currentIndex]);
                     } else { alert("檔案格式錯誤"); }
                 } catch (err) { alert("讀取失敗"); }
