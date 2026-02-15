@@ -511,6 +511,10 @@
         let rafId = null;
         let searchTerm = "";
         let wakeLock = null; 
+        
+        // 核心：背景持續音訊振盪器
+        let heartbeatOscillator = null;
+        let heartbeatGain = null;
 
         // ★★★ 節省流量模式變數 ★★★
         let isDataSaver = localStorage.getItem('dataSaver') === 'true';
@@ -535,10 +539,9 @@
         let timerInterval; let timerTargetTime = null;
         
         window.onload = async () => {
-            // 初始化開關狀態顯示
             updateDataSaverUI();
-
-            // 確保 PiP 畫布有預設內容
+            
+            // 預設封面
             updatePiP({title: "歡迎使用", artist: "請播放歌曲", cover: ""});
             
             startClock(); 
@@ -567,23 +570,36 @@
                 }
             });
 
-            pipVideo.addEventListener('pause', () => {
-                // 背景播放時，不強制暫停音樂
-            });
+            pipVideo.addEventListener('pause', () => {});
 
             pipVideo.addEventListener('leavepictureinpicture', () => {
-                stopPiPLoop(); 
+                // 離開 PiP 不做事，交由 visibilitychange 處理
             });
             
-            // 自動重試機制
             audio.addEventListener('error', (e) => {
                 console.log("Audio Error, trying next song...", e);
                 setTimeout(() => nextSong(true), 1000);
             });
             
-            // 嘗試請求喚醒鎖
             requestWakeLock();
+            
+            // ★★★ 核心修正：監聽可見性變化，背景時關閉視覺運算 ★★★
+            document.addEventListener('visibilitychange', handleVisibilityChange);
         };
+        
+        // ★★★ 核心：背景省電模式 ★★★
+        async function handleVisibilityChange() {
+            if (document.hidden) {
+                // 進入背景：停止所有視覺動畫，只留聲音
+                stopPiPLoop();
+                console.log("App in background: Visuals stopped to save battery.");
+            } else {
+                // 回到前台：恢復動畫，重新請求喚醒鎖
+                if(!audio.paused) startPiPLoop();
+                if (wakeLock !== null) await requestWakeLock();
+                console.log("App visible: Visuals resumed.");
+            }
+        }
         
         async function requestWakeLock() {
             if ('wakeLock' in navigator) {
@@ -593,25 +609,35 @@
                 } catch (err) { console.error(`${err.name}, ${err.message}`); }
             }
         }
-        
-        document.addEventListener('visibilitychange', async () => {
-            if (wakeLock !== null && document.visibilityState === 'visible') {
-                await requestWakeLock();
-            }
-        });
 
-        // ★★★ 核心：播放微弱靜音訊號，防止音訊通道被系統切斷 ★★★
-        function playSilentPulse() {
-            if(audioCtx && audioCtx.state === 'running') {
+        // 啟動持續的心跳訊號 (強制音訊通道保持開啟)
+        function startContinuousHeartbeat() {
+            if (!audioCtx) initAudioContext();
+            if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+            
+            if (heartbeatOscillator) return;
+
+            try {
+                heartbeatOscillator = audioCtx.createOscillator();
+                heartbeatGain = audioCtx.createGain();
+                heartbeatGain.gain.value = 0.0001; 
+                heartbeatOscillator.connect(heartbeatGain);
+                heartbeatGain.connect(audioCtx.destination);
+                heartbeatOscillator.start();
+            } catch(e) {
+                console.error("Heartbeat failed:", e);
+            }
+        }
+
+        function stopHeartbeat() {
+            if (heartbeatOscillator) {
                 try {
-                    const osc = audioCtx.createOscillator();
-                    const gain = audioCtx.createGain();
-                    osc.connect(gain);
-                    gain.connect(audioCtx.destination);
-                    gain.gain.value = 0.0001; // 極低音量
-                    osc.start();
-                    osc.stop(audioCtx.currentTime + 0.5); // 持續 0.5 秒
+                    heartbeatOscillator.stop();
+                    heartbeatOscillator.disconnect();
+                    heartbeatGain.disconnect();
                 } catch(e) {}
+                heartbeatOscillator = null;
+                heartbeatGain = null;
             }
         }
 
@@ -653,12 +679,14 @@
                 await document.exitPictureInPicture();
             } else {
                 try {
+                    // 為了省電，這裡不從 Canvas 抓取串流，而是讓 Video 播自己的靜音迴圈
+                    // 我們只依賴 System Media Session 做鎖定畫面控制
                     if (pipVideo.srcObject === null) {
-                        pipVideo.srcObject = pipCanvas.captureStream(30);
+                         // 這裡做一個假的串流，因為如果不設 srcObject，有些瀏覽器不讓進 PiP
+                         pipVideo.srcObject = pipCanvas.captureStream(0); // 0 FPS! 極致省電
                     }
                     
                     pipVideo.muted = false; 
-                    
                     await pipVideo.play();
 
                     if (pipVideo.readyState === 0) {
@@ -669,7 +697,8 @@
                         await pipVideo.requestPictureInPicture();
                     }
                     
-                    if(!audio.paused) startPiPLoop();
+                    // 背景下不跑動畫
+                    if(!audio.paused && !document.hidden) startPiPLoop();
 
                 } catch (err) {
                     console.error("PiP Error:", err);
@@ -691,20 +720,24 @@
                 img.src = song.cover;
                 img.onload = () => {
                     pipImage = img; 
-                    if (audio.paused) renderPiPFrame();
+                    if (audio.paused && !document.hidden) renderPiPFrame();
                 };
                 img.onerror = () => {
                     pipImage = null; 
-                    if (audio.paused) renderPiPFrame();
+                    if (audio.paused && !document.hidden) renderPiPFrame();
                 };
             } else {
                 pipImage = null;
-                if (audio.paused) renderPiPFrame();
+                if (audio.paused && !document.hidden) renderPiPFrame();
             }
         }
 
+        // 動畫迴圈 (30 FPS)，背景時會被 stopPiPLoop 暫停
         function startPiPLoop() {
             if (pipIntervalId) clearInterval(pipIntervalId);
+            // 如果在背景，就不啟動繪圖迴圈
+            if (document.hidden) return; 
+            
             pipIntervalId = setInterval(() => {
                 pipAngle += 0.5; 
                 pipTitleScroll += 1; 
@@ -718,6 +751,9 @@
         }
 
         function renderPiPFrame() {
+            // 背景模式下強制不渲染
+            if (document.hidden) return;
+
             const ctx = pipCanvas.getContext('2d');
             const width = pipCanvas.width;
             const height = pipCanvas.height;
@@ -1074,7 +1110,6 @@
             if (index < 0 || index >= currentPlaylist.length) return;
             const song = currentPlaylist[index];
             
-            // 強制重置與載入
             audio.src = song.url;
             audio.load();
             document.getElementById('player-album').innerText = ""; 
@@ -1095,8 +1130,7 @@
                 requestWakeLock();
                 if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
                 
-                // ★★★ 播放前先打強心針 ★★★
-                playSilentPulse();
+                startContinuousHeartbeat();
 
                 const playPromise = audio.play();
                 if (playPromise !== undefined) {
@@ -1279,12 +1313,14 @@
                 if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
                 if (pipVideo.srcObject && pipVideo.paused) pipVideo.play();
                 requestWakeLock();
+                startContinuousHeartbeat(); 
             } 
             else { 
                 audio.pause(); 
                 setPlayingState(false); 
                 if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
                 stopPiPLoop(); 
+                stopHeartbeat(); 
             }
         }
 
@@ -1320,8 +1356,7 @@
             const len = currentPlaylist.length;
             if (len === 0) return;
             
-            // ★★★ 在這裡也打一支強心針，確保運算期間音訊通道活著 ★★★
-            playSilentPulse();
+            startContinuousHeartbeat();
 
             if (isAuto && loopMode === 2) { audio.currentTime = 0; audio.play(); return; }
             if (isShuffle) {
@@ -1366,9 +1401,7 @@
             updatePositionState(); 
         };
         
-        // ★★★ 這裡也打強心針，雙重保險 ★★★
         audio.onended = () => { 
-            playSilentPulse();
             if (loopMode === 2) { audio.currentTime = 0; audio.play(); } else { nextSong(true); } 
         };
 
